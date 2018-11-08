@@ -413,7 +413,9 @@ function Launcher:fire(x, y)
     
     local projectile = self.nextProjectile;
     
-    projectile.direction = vec2(x - self.position.x, y - self.position.y);    
+    projectile.direction = vec2(x - self.position.x, y - self.position.y);  
+    projectile.direction.y = math.min(projectile.direction.y, -0.5);
+    
     projectile.position = vec2(self.position.x, self.position.y);    
     projectile.direction:normalize();
     projectile.uuid = self.projectileUUID;
