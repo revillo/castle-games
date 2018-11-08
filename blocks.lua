@@ -1,4 +1,4 @@
---http://localhost:4000/supafood.lua
+--http://localhost:4000/blocks.lua
 
 local Vec2 = require("lib/vec2")
 function vec2(x, y) 
@@ -54,9 +54,11 @@ function Grid:init()
         self:addRow();
     end
     
-    for r = 1, 2 do
+    for r = 1, 4 do
         self:recycle();
     end
+    
+    self:dropOrphans();
 end
 
 
@@ -67,11 +69,11 @@ function Grid:draw(state)
     love.graphics.setLineWidth(state.unit);
     love.graphics.setColor(0.0, 0.8, 1.0, 1.0);
     
-    --[[
+    
     gfx.rect("line", 
         gfx.tileOffset(1), gfx.tileOffset(1), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows)
-    );]]
+    );
 
     for r = 1, self.numRows do 
     for c = 1, self.numCols do
@@ -116,7 +118,7 @@ function Grid:projectileTouchesBlock(proj, r, c)
         local blk = self.blocks[r][c];
         
         if (blk.status == 1) then    
-            if (math.abs(r - pr) < 0.5 and math.abs(c - pc) < 0.5) then
+            if (math.abs(r - pr) < 0.75 and math.abs(c - pc) < 0.75) then
                 return true;
             end
            
@@ -153,60 +155,34 @@ function Grid:triggerBlock(br, bc)
         end
     
     end
-    --[[
-    local toCheck = {{br, bc}};
-    while(toCheck[1] ~= nil) do
-        
-        local r,c = toCheck[#toCheck][1], toCheck[#toCheck][2];
-        table.remove(toCheck, #toCheck);
-        
-        if (self.blocks[r] and self.blocks[r][c]) then
-            blk = self.blocks[r][c];
-            if (blk.status == 1 and blk.config == config) then
-            
-                blk.status = 0;
-                
-                toCheck[#toCheck + 1] = {r-1, c};
-                toCheck[#toCheck + 1] = {r+1, c};
-                toCheck[#toCheck + 1] = {r, c+1};
-                toCheck[#toCheck + 1] = {r, c-1};
-            
-            end        
-        end
-    
-    end
-    
-    ]]
 end
 
 function Grid:insertProjectile(proj)
 
     local pc, pr = math.floor(proj.position.x + 0.5), math.floor(proj.position.y + 0.5);
     
-    self.blocks[pr + 1][pc].status = 1;
-    self.blocks[pr + 1][pc].config = proj.config;
+    local bc , br, bd = -1, -1, 1000
     
-    
-    --[[
-    local bx , by = -1, -1
     
     for c = pc - 1, pc + 1 do
     for r = pr - 1, pr + 1 do
     
         if (self.blocks[r] and self.blocks[r][c]) then
             local blk = self.blocks[r][c];
-            if (blk.status == 0) then  
-
+            if (blk.status == 0 and blk.canBeFilled) then  
+                local d = math.abs(pc - c) + math.abs(pr - r);
                 
-                
-                --blk.status = 1;
-                return;
+                if (d < bd) then
+                    bd = d;
+                    bc, br = c, r;
+                end
             end
         end
     
     end end
-    ]]
     
+    self.blocks[br][bc].status = 1;
+    self.blocks[br][bc].config = proj.config;    
     
 end
 
@@ -217,26 +193,25 @@ function Grid:considerProjectile(proj)
         return true;
     end
   
-    local pc, pr = math.floor(proj.position.x), math.floor(proj.position.y);
-    local r = pr;
+    local pc, pr = math.floor(proj.position.x + 0.5), math.floor(proj.position.y + 0.5);
    
-    for c = pc - 1, pc + 1 do 
+    for c = pc - 1, pc + 1 do for r = pr-1, pr do
         if (self:projectileTouchesBlock(proj, r, c)) then
             
             --self.blocks[pr+1][pc].status = 1;
             if (proj.isBomb) then
                 self:triggerBlock(r,c);
-                self:dropOrphans();
             else
                 self:insertProjectile(proj);
             end
             
+            self:dropOrphans();
             --self:recycle();
             
             return true
             
         end
-    end 
+    end end
    
   
     if (proj.position.x < 1) then
@@ -294,6 +269,7 @@ function Grid:dropOrphans()
     
     self:eachBlock(function(block)
         block.checked = false;
+        block.canBeFilled = false;
     end);
     
     for i = 1, self.numCols do
@@ -316,7 +292,9 @@ function Grid:dropOrphans()
                 toCheck:push{r, c+1};
                 toCheck:push{r, c-1};
             
-            end        
+            elseif (blk.status == 0 and not blk.checked) then
+                blk.canBeFilled = true;
+            end
         end
     
     end
