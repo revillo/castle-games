@@ -8,6 +8,7 @@ end
 local Array = require("lib/array")
 
 State = {}
+Assets = {}
 local PIXEL = 1/200
 
 Class = {}
@@ -30,7 +31,7 @@ Grid = Class:new();
 BlockType = {
     
     Blue = {
-        color = {0, 0, 1, 1} 
+        color = {0, 0.2, 1.0, 1.0} 
     },
     
     
@@ -49,6 +50,8 @@ function Grid:init()
         blockConfigs = {BlockType.Blue, BlockType.Red},
         maxRows = 15
     }
+    
+    self.totalTime = 0;
     
     for r = 1, self.config.maxRows do
         self:addRow();
@@ -79,10 +82,16 @@ function Grid:draw(state)
     for c = 1, self.numCols do
         
         local blk = self.blocks[r][c];
-
+        clr(blk.config.color);
+        
         if (blk.status == 1) then
-            clr(blk.config.color);
             gfx.drawTile(c, r);
+        elseif (blk.shrink) then
+            gfx.drawTile(c, r, math.min(1, blk.shrink / 10));
+            blk.shrink = blk.shrink - state.dt * 50.0;
+            if (blk.shrink < 0) then
+                blk.shrink = nil;
+            end
         end
         
     end 
@@ -133,23 +142,26 @@ function Grid:triggerBlock(br, bc)
     local config = self.blocks[br][bc].config;
     local toCheck = Array:new{};
     
-    toCheck:push({br, bc});
+    Assets.sounds.explode:play();
+    
+    toCheck:push({br, bc, 0});
     
     while(toCheck[1] ~= nil) do
         
         local current = toCheck:pop();
         local r,c = current[1], current[2];
+        local dist = current[3];
         
         if (self.blocks[r] and self.blocks[r][c]) then
             blk = self.blocks[r][c];
             if (blk.status == 1 and blk.config == config) then
-            
                 blk.status = 0;
+                blk.shrink = 10 + dist;
                 
-                toCheck:push{r-1, c};
-                toCheck:push{r+1, c};
-                toCheck:push{r, c+1};
-                toCheck:push{r, c-1};
+                toCheck:push{r-1, c, dist+1};
+                toCheck:push{r+1, c, dist+1};
+                toCheck:push{r, c+1, dist+1};
+                toCheck:push{r, c-1, dist+1};
             
             end        
         end
@@ -182,8 +194,10 @@ function Grid:insertProjectile(proj)
     end end
     
     self.blocks[br][bc].status = 1;
+    self.blocks[br][bc].shrink = nil;
     self.blocks[br][bc].config = proj.config;    
     
+    Assets.sounds.attach:play();
 end
 
 function Grid:considerProjectile(proj)
@@ -216,44 +230,26 @@ function Grid:considerProjectile(proj)
   
     if (proj.position.x < 1) then
         proj.direction.x = -proj.direction.x;
+        Assets.sounds.bounce:play();
     end
   
     if (proj.position.x > self.numCols) then
         proj.direction.x = -proj.direction.x;
+        Assets.sounds.bounce:play();
     end
   
     return false;
 
-  
-  
-    --return proj.position.x < 1 or proj.position.x > self.numCols
-
---return false;
-
---[[  
-  local fc, fr = math.floor(proj.position.x), math.floor(proj.position.y);
-  local r = fr;
-   
-  for c = fc - 1, fc + 1 do 
-    if (self.blocks[r] and self.blocks[r][c]) then
-        self.blocks[r][c].status = 0;
-        return true;
-    end
-  
-  end 
-    
-     ]]
-
 end
 
 function Grid:recycle()
-    local tmpRow = self.blocks[#self.blocks];
+    local tmpRow = self.blocks[self.numRows];
         
     for c = 1, self.numCols do
         tmpRow[c] = self:makeRandomBlock(); 
     end
     
-    table.remove(self.blocks, #self.blocks);
+    table.remove(self.blocks, self.numRows);
     table.insert(self.blocks, 1, tmpRow);
 end
 
@@ -261,6 +257,12 @@ function Grid:eachBlock(fn)
     for r = 1, self.numRows do for c = 1, self.numCols do
         fn(self.blocks[r][c])
     end end
+end
+
+function Grid:eachBlockInRow(r, fn)
+    for c = 1, self.numCols do
+        fn(self.blocks[r][c])
+    end
 end
 
 function Grid:dropOrphans()
@@ -300,18 +302,53 @@ function Grid:dropOrphans()
     end
     
     self:eachBlock(function(block)
-        if (not block.checked) then
+        if (not block.checked and block.status == 1) then
             block.status = 0;
+            block.shrink = 10;
         end
     end);
 
 end
 
+function Grid:clear()
+  
+  self.totalTime = 0;
+  
+  self:eachBlock(function(block)
+    
+    block.status = 0;
+    
+  end);
+  
+  self:dropOrphans();
+  
+end
+
 function Grid:update(state)
     
-    self.yOffset = self.yOffset + state.dt * 0.3;
+    
+    local difficulty = math.floor(self.totalTime) / 10.0;
+    
+    self.totalTime = self.totalTime + state.dt;
+    
+    self.yOffset = self.yOffset + state.dt * (0.2 + (difficulty * 0.05));
     
     if (self.yOffset > 1.0) then
+        
+        local didLose = false;
+        
+        self:eachBlockInRow(self.numRows, function(block)
+          if (block.status == 1) then
+            didLose = true;
+          end
+        end);
+        
+        if (didLose) then
+          print("clear");
+          self:clear();
+        end
+        
+        
         self:recycle();
         self.yOffset = 0.0;
     end
@@ -322,7 +359,7 @@ Projectile = Class:new();
 
 function Projectile:update(state) 
     
-    self.position:addScaled(self.direction, state.dt * 8);
+    self.position:addScaled(self.direction, state.dt * 15);
     
 end
 
@@ -349,6 +386,7 @@ function Launcher:init()
     self.projectileUUID = 1;
     
     self.nextProjectile = self:createProjectile();
+    self.nextProjectile.position:addY(1);
     self.projectileOnDeck = self:createProjectile();
 end
 
@@ -370,6 +408,9 @@ end
 
 function Launcher:fire(x, y) 
 
+
+    Assets.sounds.zap:play();
+    
     local projectile = self.nextProjectile;
     
     projectile.direction = vec2(x - self.position.x, y - self.position.y);    
@@ -434,8 +475,17 @@ end
 function love.load()
     local w, h = love.graphics.getDimensions();
     resize(w,h);
+    
+    Assets.sounds = {
+      zap = love.audio.newSource("sounds/laser.wav", "static"),
+      explode = love.audio.newSource("sounds/explosion.wav", "static");
+      bounce = love.audio.newSource("sounds/bounce.wav", "static"),
+      attach = love.audio.newSource("sounds/attach.wav", "static")
+    }  
+    
     State.grid = Grid:new();
     State.launcher = Launcher:new{grid = State.grid};
+   
 end
 
 function love.update(dt)
@@ -459,12 +509,16 @@ State.gfx = {
         return State.gfx.tileSize(s) + State.gfx.pts(1);
     end,
     
-    drawTile = function(x, y)
+    drawTile = function(x, y, shrink)
+        if (shrink == nil) then
+            shrink = 1;
+        end
+    
         return State.gfx.rect("fill", 
-            State.gfx.tileOffset(x), 
-            State.gfx.tileOffset(y),
-            State.gfx.tileSize(1),
-            State.gfx.tileSize(1));
+            State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
+            State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
+            State.gfx.tileSize(1 * shrink),
+            State.gfx.tileSize(1 * shrink));
     end,
     
     pixToOffset = function(x, y)
