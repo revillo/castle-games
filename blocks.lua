@@ -309,10 +309,9 @@ end
 
 function Grid:update(state)
     
-    --self.yOffset = self.yOffset + state.dt * 0.3;
+    self.yOffset = self.yOffset + state.dt * 0.3;
     
     if (self.yOffset > 1.0) then
-        --self:addRow();
         self:recycle();
         self.yOffset = 0.0;
     end
