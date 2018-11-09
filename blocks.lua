@@ -229,11 +229,13 @@ function Grid:considerProjectile(proj)
    
   
     if (proj.position.x < 1) then
+        proj.position.x = 1 + (1 - proj.position.x)
         proj.direction.x = -proj.direction.x;
         Assets.sounds.bounce:play();
     end
   
     if (proj.position.x > self.numCols) then
+        proj.position.x = self.numCols - (proj.position.x - self.numCols)
         proj.direction.x = -proj.direction.x;
         Assets.sounds.bounce:play();
     end
