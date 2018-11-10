@@ -6,6 +6,7 @@ function vec2(x, y)
 end
 
 local Array = require("lib/array")
+local Queue = require("lib/queue")
 
 State = {}
 Assets = {}
@@ -31,12 +32,19 @@ Grid = Class:new();
 BlockType = {
     
     Blue = {
-        color = {0, 0.2, 1.0, 1.0} 
+        color = {0, 0.0, 1.0, 1.0} 
     },
-    
     
     Red = {
         color = {1, 0, 0, 1}
+    },
+    
+    Yellow = {
+        color = {1, 1, 0, 1}
+    },
+    
+    Green = {
+        color = {0, 0.75, 0, 1}
     }
 
 }
@@ -48,7 +56,8 @@ function Grid:init()
     self.blocks = {};
     self.config = {
         blockConfigs = {BlockType.Blue, BlockType.Red},
-        maxRows = 15
+        maxRows = 15,
+        bombChance = 0.25
     }
     
     self.totalTime = 0;
@@ -140,28 +149,30 @@ end
 
 function Grid:triggerBlock(br, bc)
     local config = self.blocks[br][bc].config;
-    local toCheck = Array:new{};
+    local toCheck = Queue:new{};
     
     Assets.sounds.explode:play();
     
-    toCheck:push({br, bc, 0});
+    toCheck:pushright({br, bc, 0});
     
-    while(toCheck[1] ~= nil) do
+    while(not toCheck:isEmpty()) do
         
-        local current = toCheck:pop();
+        local current = toCheck:popleft();
         local r,c = current[1], current[2];
         local dist = current[3];
         
         if (self.blocks[r] and self.blocks[r][c]) then
             blk = self.blocks[r][c];
             if (blk.status == 1 and blk.config == config) then
+            
+                State.score = State.score + 10;
                 blk.status = 0;
                 blk.shrink = 10 + dist;
                 
-                toCheck:push{r-1, c, dist+1};
-                toCheck:push{r+1, c, dist+1};
-                toCheck:push{r, c+1, dist+1};
-                toCheck:push{r, c-1, dist+1};
+                toCheck:pushright{r-1, c, dist+1};
+                toCheck:pushright{r+1, c, dist+1};
+                toCheck:pushright{r, c+1, dist+1};
+                toCheck:pushright{r, c-1, dist+1};
             
             end        
         end
@@ -330,10 +341,11 @@ function Grid:update(state)
     
     
     local difficulty = math.floor(self.totalTime) / 10.0;
+    difficulty = difficulty ^ 0.5;
     
     self.totalTime = self.totalTime + state.dt;
     
-    self.yOffset = self.yOffset + state.dt * (0.2 + (difficulty * 0.05));
+    self.yOffset = self.yOffset + state.dt * (0.15 + (difficulty * 0.01));
     
     if (self.yOffset > 1.0) then
         
@@ -346,7 +358,6 @@ function Grid:update(state)
         end);
         
         if (didLose) then
-          print("clear");
           self:clear();
         end
         
@@ -398,7 +409,7 @@ function Launcher:createProjectile()
         position = vec2(self.position.x, self.position.y + 2)
     });
     
-    if (math.random() < 0.2) then
+    if (math.random() < 0.25) then
         projectile.isBomb = true;
     else
         projectile.config = self.grid:sampleBlockConfigs();
@@ -482,11 +493,17 @@ function love.load()
     
     Assets.sounds = {
       zap = love.audio.newSource("sounds/laser.wav", "static"),
-      explode = love.audio.newSource("sounds/explosion.wav", "static");
+      explode = love.audio.newSource("sounds/explosion.wav", "static"),
       bounce = love.audio.newSource("sounds/bounce.wav", "static"),
       attach = love.audio.newSource("sounds/attach.wav", "static")
     }  
     
+    Assets.images = {
+      gem =  love.graphics.newImage("images/gem.png"),
+      sheen =  love.graphics.newImage("images/sheen.png")
+    }
+    
+    State.score = 0;
     State.grid = Grid:new();
     State.launcher = Launcher:new{grid = State.grid};
    
@@ -517,12 +534,28 @@ State.gfx = {
         if (shrink == nil) then
             shrink = 1;
         end
-    
-        return State.gfx.rect("fill", 
+      
+        --[[
+        State.gfx.rect("fill", 
             State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
             State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
             State.gfx.tileSize(1 * shrink),
             State.gfx.tileSize(1 * shrink));
+           ]] 
+        love.graphics.draw(Assets.images.gem,
+           State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
+           State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
+           0,
+           State.gfx.tileSize(1 * shrink)/32, State.gfx.tileSize(1 * shrink)/32);
+        
+        love.graphics.setColor(1,1,1,1);
+        
+        love.graphics.draw(Assets.images.sheen,
+           State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
+           State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
+           0,
+           State.gfx.tileSize(1 * shrink)/32, State.gfx.tileSize(1 * shrink)/32);
+            
     end,
     
     pixToOffset = function(x, y)
@@ -536,14 +569,18 @@ function drawUI(state)
     
     love.graphics.setColor(1,1,1,1);
     
-    love.graphics.print("Score: 000", 0, 0, 0, 1, 1);
+    love.graphics.print("Score: " .. State.score, 0, 0, 0, 1, 1);
     
 end
 
 function love.draw()
+  
+  love.graphics.setBlendMode("alpha")
+
   drawUI(State);
   State.grid:draw(State);
   State.launcher:draw(State);
+  
 end
 
 function love.mousepressed( x, y, button, istouch, presses )
