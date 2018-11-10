@@ -1,5 +1,7 @@
 --http://localhost:4000/blocks.lua
 
+local VOLUME = 0
+
 local Vec2 = require("lib/vec2")
 function vec2(x, y) 
     return Vec2:new{x=x or 0, y=y or 0};
@@ -54,6 +56,8 @@ function Grid:init()
     self.numRows = 0;
     self.yOffset = 0;
     self.blocks = {};
+    self.gems = {};
+    self.gemID = 0;
     self.config = {
         blockConfigs = {BlockType.Blue, BlockType.Red},
         maxRows = 15,
@@ -73,7 +77,6 @@ function Grid:init()
     self:dropOrphans();
 end
 
-
 function Grid:draw(state)
     local gfx = state.gfx;
     local clr = love.graphics.setColor;
@@ -86,24 +89,41 @@ function Grid:draw(state)
         gfx.tileOffset(1), gfx.tileOffset(1), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows)
     );
-
-    for r = 1, self.numRows do 
-    for c = 1, self.numCols do
+    
+    --draw blocks
+    self:eachBlock(function(blk,r , c)
         
-        local blk = self.blocks[r][c];
         clr(blk.config.color);
         
-        if (blk.status == 1) then
+        if (blk.gem) then
+        
+        elseif (blk.status == 1) then
+            
             gfx.drawTile(c, r);
+                        
         elseif (blk.shrink) then
+        
             gfx.drawTile(c, r, math.min(1, blk.shrink / 10));
-            blk.shrink = blk.shrink - state.dt * 50.0;
+            blk.shrink = blk.shrink - state.dt * 100.0;
             if (blk.shrink < 0) then
                 blk.shrink = nil;
             end
+        end   
+    end);
+    
+    --draw gems
+    for k,gem in pairs(self.gems) do
+        if (gem) then
+    
+            gfx.drawGem(gem);
+            
+            if (gem.shrink ~= nil) then
+                gem.shrink = gem.shrink - state.dt * 100.0;
+                if (gem.shrink < 0) then
+                    self.gems[gem.id] = nil;
+                end
+            end
         end
-        
-    end 
     end
     
 end
@@ -167,7 +187,12 @@ function Grid:triggerBlock(br, bc)
             
                 State.score = State.score + 10;
                 blk.status = 0;
-                blk.shrink = 10 + dist;
+                
+                if (blk.gem) then
+                    blk.gem.shrink = blk.gem.shrink or (10 + dist * 10);
+                else
+                    blk.shrink = 10 + dist * 10;
+                end
                 
                 toCheck:pushright{r-1, c, dist+1};
                 toCheck:pushright{r+1, c, dist+1};
@@ -178,6 +203,146 @@ function Grid:triggerBlock(br, bc)
         end
     
     end
+end
+
+function Grid:gemScore(w, h)
+    
+    if (w <= 1 or h <= 1) then
+        return 0;
+    end
+    
+    return math.min(w,h) * 100 + math.max(w,h);
+    
+end
+
+function Grid:eachBlockInGem(gem, fn)
+
+    for r = gem.r, (gem.r+gem.h-1) do for c = gem.c, gem.c+gem.w-1 do
+        fn(self.blocks[r][c]);
+    end end
+
+end
+
+function Grid:constructLargestGem()
+    for r = 1, self.numRows do
+        
+        local count = 0;
+        local cfg = nil;
+        
+        for c = self.numCols, 1, -1 do 
+            local blk = self.blocks[r][c];
+            if (blk.status == 1 and (blk.gem == nil)) then
+            
+                if (cfg == nil) then
+                    cfg = blk.config;
+                end
+            
+                if (blk.config == cfg) then
+                    count = count + 1;
+                else
+                    count = 1;
+                    cfg = blk.config;
+                end
+                
+                blk.largestWidth = count;
+            else
+                count = 0;
+                cfg = nil;
+                blk.largestWidth = 0;
+            end
+        end
+    end
+    
+    local bestGem = {
+        w = 0,
+        h = 0,
+        r = -1,
+        c = -1,
+        config = nil
+    }
+
+    self:eachBlock(function(blk, br, bc)
+        
+        if (blk.status == 0 or blk.largestWidth < 1) then
+            return;
+        end
+       
+        local cw, ch = blk.largestWidth, 1;
+ 
+        for r = br + 1, self.numRows do
+            
+            local blk2 = self.blocks[r][bc];
+            
+            if (blk2.status == 1 and blk2.config == blk.config and blk2.largestWidth > 1) then
+        
+                cw, ch = math.min(cw, blk2.largestWidth), ch + 1;
+                                
+                if (self:gemScore(bestGem.w, bestGem.h) < self:gemScore(cw, ch)) then
+                    bestGem.w, bestGem.h = cw, ch;
+                    bestGem.r, bestGem.c = br, bc;
+                    bestGem.config = blk.config;
+                end
+                
+            else
+                
+                break;
+            
+            end
+        end
+    end);
+    
+    if (bestGem.config == nil) then
+        return false;
+    else
+        self.gemID = self.gemID + 1;
+        bestGem.id = self.gemID;
+        self.gems[self.gemID] = bestGem;
+    end
+    
+    self:eachBlockInGem(bestGem, function(block)
+        block.gem = bestGem;
+    end);
+
+    return true;
+    
+end
+
+function Grid:eachGem(fn)
+    for k, gem in pairs(self.gems) do
+        if (gem ~= nil) then
+            fn(gem)
+        end
+    end
+end
+
+function Grid:constructGems()
+  
+    self:eachBlock(function(blk)
+        blk.gem = nil;
+        blk.largestWidth = 0;
+    end);
+    
+    self:eachGem(function(gem) 
+
+        if (gem.shrink == nil) then
+            self.gems[gem.id] = nil;
+        end
+        
+        --self.gems[gem.id] = nil;
+    end);
+    
+    local stopper = 0;
+  
+    while(self:constructLargestGem() and stopper < 20) do
+        stopper = stopper + 1;
+    end;
+    
+    if (stopper > 20) then
+        print ("sadness")
+    end
+    
+    --self:constructLargestGem();
+    
 end
 
 function Grid:insertProjectile(proj)
@@ -263,12 +428,12 @@ function Grid:recycle()
     end
     
     table.remove(self.blocks, self.numRows);
-    table.insert(self.blocks, 1, tmpRow);
+    table.insert(self.blocks, 1, tmpRow);    
 end
 
 function Grid:eachBlock(fn)
     for r = 1, self.numRows do for c = 1, self.numCols do
-        fn(self.blocks[r][c])
+        fn(self.blocks[r][c], r, c)
     end end
 end
 
@@ -320,6 +485,9 @@ function Grid:dropOrphans()
             block.shrink = 10;
         end
     end);
+    
+    
+    self:constructGems();
 
 end
 
@@ -363,6 +531,7 @@ function Grid:update(state)
         
         
         self:recycle();
+        self:dropOrphans();
         self.yOffset = 0.0;
     end
 
@@ -399,7 +568,7 @@ function Launcher:init()
     self.projectileUUID = 1;
     
     self.nextProjectile = self:createProjectile();
-    self.nextProjectile.position:addY(1);
+    self.nextProjectile.position:addY(-1);
     self.projectileOnDeck = self:createProjectile();
 end
 
@@ -498,6 +667,10 @@ function love.load()
       attach = love.audio.newSource("sounds/attach.wav", "static")
     }  
     
+    for k,v in pairs(Assets.sounds) do
+        v:setVolume(VOLUME);
+    end
+    
     Assets.images = {
       gem =  love.graphics.newImage("images/gem.png"),
       sheen =  love.graphics.newImage("images/sheen.png")
@@ -528,6 +701,44 @@ State.gfx = {
     
     tileOffset = function(s)
         return State.gfx.tileSize(s) + State.gfx.pts(1);
+    end,
+    
+    drawGem = function(gem)
+        
+        love.graphics.setColor(gem.config.color);
+        
+        --[[State.gfx.rect("fill", 
+            State.gfx.tileOffset(gem.c), 
+            State.gfx.tileOffset(gem.r),
+            State.gfx.tileSize(gem.w),
+            State.gfx.tileSize(gem.h));
+        ]]
+            
+        local shrink = gem.shrink;
+        if (shrink == nil or shrink > 10) then
+            shrink = 1;
+        else
+            shrink = shrink / 10;
+        end
+        
+        local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h
+        
+        love.graphics.draw(Assets.images.gem,
+           State.gfx.tileOffset(ox), 
+           State.gfx.tileOffset(oy),
+           0,
+           State.gfx.tileSize(gem.w * shrink)/32, State.gfx.tileSize(gem.h * shrink)/32);
+        
+        love.graphics.setColor(1,1,1,1);
+        
+        love.graphics.draw(Assets.images.sheen,
+           State.gfx.tileOffset(ox), 
+           State.gfx.tileOffset(oy),
+           0,
+           State.gfx.tileSize(gem.w * shrink)/32, State.gfx.tileSize(gem.h * shrink)/32);
+                  
+            
+        
     end,
     
     drawTile = function(x, y, shrink)
