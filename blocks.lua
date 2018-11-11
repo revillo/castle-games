@@ -11,29 +11,33 @@ end
 local Array = require("lib/array")
 local Queue = require("lib/queue")
 local Sound = require("lib/sound");
+local TextAnimator = require("lib/TextAnimator")
 
 State = {}
 Assets = {}
-local PIXEL = 1/200
+local POINT_SIZE = 1/200
 
 Class = {}
 
 local LEVELS = {
-    --colors  --columns --scrollSpeed --scoreNeeded
-    {  2,        5,        0.15,          1000 },
-    {  2,        6,        0.16,          2000 },
-    {  2,        7,        0.17,          4000 },
-    {  2,        8,        0.19,          7000 },
-    {  2,        9,        0.22,         10000 }, 
+    --colors | columns | scrollSpeed | scoreNeeded
+    {  2,        5,        0.15,          1500 },
+    {  2,        6,        0.16,          4000 },
+    {  2,        7,        0.17,          9000 },
+    {  2,        8,        0.19,         14000 },
+    {  2,        9,        0.22,         19000 }, 
     
-    {  2,        10,        0.23,        12000 }, 
-    {  2,        11,        0.24,        14000 }, 
-    {  2,        5,        0.3,          16000 }, 
-    {  2,        7,       0.33,          18000 }, 
-    {  2,        8,       0.34,          20000 }, 
+    {  2,        10,        0.23,        24000 }, 
+    {  2,        11,        0.24,        26000 }, 
+    {  2,        5,        0.3,          30000 }, 
+    {  2,        7,       0.33,          33000 }, 
+    {  2,        8,       0.34,          36000 }, 
     
-    {  2,        10,       0.34,         22000 }, 
-    {  3,        5,       0.15,          25000} 
+    {  2,        10,       0.34,         39000 }, 
+    {  3,        5,       0.15,          42000 },
+    {  3,        6,       0.17,          45000 },
+    {  3,        7,       0.20,          50000 },
+    {  3,        8,       0.23,          60000 }
 }
 
 
@@ -75,7 +79,6 @@ BlockType = {
 function Grid:nextLevel()
     
     self:setLevel( (self.levelNumber or 0) + 1 );
-
 end
 
 function Grid:setLevel(n)
@@ -112,11 +115,17 @@ function Grid:setLevel(n)
         self:addRow();
     end
     
-    for r = 1, 2 do
-        self:recycle();
-    end
+    self:recycle();
     
     self:dropOrphans();
+    
+    
+    self.textAnim:addAnimation("Level ".. self.levelNumber, nil, {
+        duration = 2,
+        x = State.gfx.tileOffsetX(self.numCols * 0.5) ,
+        y = State.gfx.tileOffsetY(self.numRows * 0.5),
+        size = 2
+    });
 end
 
 function Grid:init()
@@ -126,6 +135,8 @@ function Grid:init()
     self.blocks = {};
     self.gems = {};
     self.gemID = 0;
+    self.textAnim = TextAnimator:new();
+    
     
     self.config = {
         blockConfigs = {BlockType.Blue, BlockType.Red},
@@ -133,7 +144,6 @@ function Grid:init()
         bombChance = 0.25
     }
     
-    self.totalTime = 0;
     self:setLevel(1);
 
 end
@@ -141,12 +151,22 @@ end
 function Grid:updateSounds()
 
   local didPlay = false;
-  self:eachBlock(function(blk)
+  self:eachBlock(function(blk, r, c)
   
-    if (not didPlay and blk.willBurst and blk.shrink / 10 < 1.0) then
-        Assets.sounds.chip:play();
+    if (blk.willBurst and blk.shrink < 1.0) then
         blk.willBurst = nil;
-        didPlay = true;
+        
+        if (not didPlay) then
+            didPlay = true;
+            Assets.sounds.chip:play();
+        end
+        
+        self.textAnim:addAnimation("+10", nil, {
+            duration = 0.5,
+            x = State.gfx.tileOffsetX(c + 0.2),
+            y = State.gfx.tileOffsetY(r + 0.7),
+            size = 1
+        });
     end
   
   end);
@@ -154,16 +174,29 @@ function Grid:updateSounds()
   didPlay = false;
   self:eachGem(function(gem)
   
-    if (not didPlay and gem.willBurst and gem.shrink / 10 < 1.0) then
-        Assets.sounds.glass:play();
+    if (gem.willBurst and gem.shrink < 1.0) then
+    
+        if (not didPlay) then
+            didPlay = true;
+            Assets.sounds.glass:play();
+        end
+    
         gem.willBurst = nil;
-        didPlay = true;
+        self.textAnim:addAnimation("+" .. self:gemScore(gem.w, gem.h), nil, {
+            duration = 1.5,
+            x = State.gfx.tileOffsetX(gem.c + 0.2 * gem.w),
+            y = State.gfx.tileOffsetY(gem.r + 0.7 * gem.h),
+            size = 2
+        });
+        
     end
     
   end);
 end
 
 function Grid:draw(state)
+
+        
     local gfx = state.gfx;
     local clr = love.graphics.setColor;
     
@@ -190,8 +223,8 @@ function Grid:draw(state)
                         
         elseif (blk.shrink) then
         
-            gfx.drawTile(c, r + self.yOffset, math.min(1, blk.shrink / 10));
-            blk.shrink = blk.shrink - state.dt * 100.0;
+            gfx.drawTile(c, r + self.yOffset, math.min(1, blk.shrink));
+            blk.shrink = blk.shrink - state.dt * 10.0;
           
             if (blk.shrink < 0) then
                 blk.shrink = nil;
@@ -206,16 +239,20 @@ function Grid:draw(state)
             gfx.drawGem(gem, self.yOffset);
             
             if (gem.shrink ~= nil) then
-                gem.shrink = gem.shrink - state.dt * 100.0;
-                if (gem.shrink < 0) then
+                
+                
+                if (gem.shrink > 1) then
+                    gem.shrink = gem.shrink - state.dt * 10.0;
+                elseif (gem.shrink < 0) then
                     self.gems[gem.id] = nil;
+                else
+                    gem.shrink = gem.shrink - state.dt * 10.0 / math.min(gem.w, gem.h);
                 end
             end
         end
     end
     
     love.graphics.setColor(0.0, 0.8, 1.0, 1.0);
-
     
     gfx.rect("line", 
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
@@ -227,6 +264,9 @@ function Grid:draw(state)
         gfx.tileOffsetX(0.5), gfx.tileOffsetY(1), 
         gfx.tileSize(self.numCols + 1), gfx.tileSize(1)
     );
+    
+    self.textAnim:draw();
+
     
 end
 
@@ -274,16 +314,18 @@ function Grid:triggerBlock(br, bc)
                 if (blk.gem) then
                 
                     if (blk.gem.shrink == nil) then
-                        blk.gem.shrink = blk.gem.shrink or (10 + dist * 10);
+                        blk.gem.shrink = blk.gem.shrink or (1 + dist);
                         blk.gem.willBurst = true;
                         local score = self:gemScore(blk.gem.w, blk.gem.h);
                         State.score = State.score + score;
+                    else
+                        dist = dist - 1;
                     end
                     
                     
                 else
                     State.score = State.score + 10;
-                    blk.shrink = 10 + dist * 10;
+                    blk.shrink = 1 + dist;
                     blk.willBurst = true;
                 end
                 
@@ -304,7 +346,7 @@ function Grid:gemScore(w, h)
         return 0;
     end
     
-    return math.min(w,h) * 100 + math.max(w,h);
+    return math.min(w,h) * 100 + math.max(w,h) * math.max(w,h);
     
 end
 
@@ -490,8 +532,12 @@ end
 
 function Grid:considerProjectile(proj)
   
-    if(proj.position.y < 0) then
-        --todo
+    if(proj.position.y  - self.yOffset < 1) then
+        
+        if(not proj.isBomb) then
+            self:insertProjectile(proj);
+        end
+        
         return true;
     end
   
@@ -594,7 +640,8 @@ function Grid:dropOrphans()
     self:eachBlock(function(block)
         if (not block.checked and block.status == 1) then
             block.status = 0;
-            block.shrink = 10;
+            --todo
+            block.shrink = 2;
         end
     end);
     
@@ -603,29 +650,10 @@ function Grid:dropOrphans()
 
 end
 
-function Grid:clear()
-  
-  self.totalTime = 0;
-  
-  self:eachBlock(function(block)
-    
-    block.status = 0;
-    
-  end);
-  
-  self:dropOrphans();
-  
-end
-
 function Grid:update(state)
     self:updateSounds();
-
-    
-    local difficulty = math.floor(self.totalTime) / 10.0;
-    difficulty = difficulty ^ 0.5;
-    
-    self.totalTime = self.totalTime + state.dt;
-    
+    self.textAnim:update(state.dt);
+   
     self.yOffset = self.yOffset + state.dt * self.config.scrollSpeed;
     
     if (self.yOffset > 1.0) then
@@ -639,9 +667,9 @@ function Grid:update(state)
         end);
         
         if (didLose) then
-          self:clear();
+          self:setLevel(self.levelNumber);
+          Assets.sounds.lose:play();
         end
-        
         
         self:recycle();
         self:dropOrphans();
@@ -768,7 +796,7 @@ end
 function resize(w, h)
     State.width = w;
     State.height = h;
-    State.unit = math.min(w * PIXEL, h * PIXEL)
+    State.unit = math.min(w * POINT_SIZE, h * POINT_SIZE)
 end
 
 
@@ -782,10 +810,12 @@ function love.load()
     
     Assets.sounds = {
       zap =     Sound:new("sounds/laser.wav", 3),
-      chip = Sound:new("sounds/chip.wav",  15),
+      chip = Sound:new("sounds/chip2.wav",  15),
       bounce =  Sound:new("sounds/bounce.wav",  2),
       attach =  Sound:new("sounds/attach.wav",  2),
-      glass = Sound:new("sounds/glass.wav",  15),
+      glass = Sound:new("sounds/glass2.wav",  15),
+      lose = Sound:new("sounds/lose.wav"),
+      win = Sound:new("sounds/win.wav")
     }  
     
     for k,v in pairs(Assets.sounds) do
@@ -811,6 +841,7 @@ function love.update(dt)
     if (State.score > State.grid.config.scoreNeeded) then
         State.grid:nextLevel();
         State.launcher:reset();
+        Assets.sounds.win:play();
     end
     
     
@@ -840,10 +871,8 @@ State.gfx = {
         love.graphics.setColor(gem.config.color);
 
         local shrink = gem.shrink;
-        if (shrink == nil or shrink > 10) then
+        if (shrink == nil or shrink > 1) then
             shrink = 1;
-        else
-            shrink = shrink / 10;
         end
         
         local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
@@ -897,6 +926,7 @@ function drawUI(state)
     love.graphics.setColor(1,1,1,1);
     
     love.graphics.print("Score: " .. State.score .. " / " .. State.grid.config.scoreNeeded, 0, 0, 0, 1, 1);
+    love.graphics.print("Level: " .. State.grid.levelNumber, 0, 15, 0, 1, 1);
     
 end
 
@@ -919,16 +949,16 @@ function love.mousepressed( x, y, button, istouch, presses )
 end
 
 function love.keypressed(k)
-    --State.keyboard[k] = 1;
     State.grid:addRow();
     
+    --Debugging
     if (k == "w") then
         State.grid:nextLevel();
         State.launcher:reset();
+        Assets.sounds.win:play();
     end
 
 end
 
 function love.keyreleased(k)
-    --State.keyboard[k] = 0;
 end
