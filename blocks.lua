@@ -228,6 +228,7 @@ function Grid:draw(state)
           
             if (blk.shrink < 0) then
                 blk.shrink = nil;
+                blk.willBurst = nil;
             end
         end   
     end);
@@ -504,9 +505,19 @@ function Grid:insertProjectile(proj)
     
     end end
     
-    self.blocks[br][bc].status = 1;
-    self.blocks[br][bc].shrink = nil;
-    self.blocks[br][bc].config = proj.config;    
+    if (br >= self.numRows) then
+        
+        self.didLose = true;
+    
+    elseif (self.blocks[br] and self.blocks[br][bc]) then
+
+        self.blocks[br][bc] = {
+            status = 1,
+            config = proj.config
+        };
+        
+    end
+    
     
     Assets.sounds.attach:play();
 end
@@ -650,32 +661,47 @@ function Grid:dropOrphans()
 
 end
 
+function Grid:checkLose()
+    local didLose = self.didLose or false;
+        
+    self:eachBlockInRow(self.numRows, function(block)
+      if (block.status == 1) then
+        didLose = true;
+      end
+    end);
+    
+    if (didLose) then
+        self.didLose = false;
+        Assets.sounds.lose:play();
+        local prevLevel = LEVELS[self.levelNumber - 1];
+        if (prevLevel ~= nil) then
+            State.score = prevLevel[4];
+        else
+            State.score = 0;
+        end
+        self:setLevel(self.levelNumber);
+    end      
+    
+    return didLose;
+
+end
+
 function Grid:update(state)
     self:updateSounds();
     self.textAnim:update(state.dt);
-   
-    self.yOffset = self.yOffset + state.dt * self.config.scrollSpeed;
     
-    if (self.yOffset > 1.0) then
-        
-        local didLose = false;
-        
-        self:eachBlockInRow(self.numRows - 1, function(block)
-          if (block.status == 1) then
-            didLose = true;
-          end
-        end);
-        
-        if (didLose) then
-          self:setLevel(self.levelNumber);
-          Assets.sounds.lose:play();
-        end
-        
-        self:recycle();
-        self:dropOrphans();
-        self.yOffset = 0.0;
-    end
+    if (self:checkLose()) then
+    
+    
+    else
+        self.yOffset = self.yOffset + state.dt * self.config.scrollSpeed;
 
+        if (self.yOffset > 1.0) then
+            self:recycle();
+            self:dropOrphans();
+            self.yOffset = 0.0;
+        end
+    end
 end
 
 Projectile = Class:new();
