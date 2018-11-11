@@ -483,7 +483,9 @@ end
 
 function Grid:insertProjectile(proj)
 
-    local pc, pr = math.floor(proj.position.x + 0.5), math.floor(proj.position.y + 0.5 - self.yOffset);
+    local pfc, pfr = proj.position.x, proj.position.y - self.yOffset;
+    
+    local pc, pr = math.floor(pfc + 0.5), math.floor(pfr + 0.5);
     
     local bc , br, bd = -1, -1, 1000
     
@@ -494,7 +496,7 @@ function Grid:insertProjectile(proj)
         if (self.blocks[r] and self.blocks[r][c]) then
             local blk = self.blocks[r][c];
             if (blk.status == 0 and blk.canBeFilled) then  
-                local d = math.abs(pc - c) + math.abs(pr - r);
+                local d = math.abs(pfc - c) + math.abs(pfr - r);
                 
                 if (d < bd) then
                     bd = d;
