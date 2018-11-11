@@ -1,7 +1,7 @@
 --http://localhost:4000/blocks.lua
 
 local VOLUME = 0.5
-local PNG_SIZE = 32
+local PNG_SIZE = 256
 
 local Vec2 = require("lib/vec2")
 function vec2(x, y) 
@@ -10,6 +10,7 @@ end
 
 local Array = require("lib/array")
 local Queue = require("lib/queue")
+local Sound = require("lib/sound");
 
 State = {}
 Assets = {}
@@ -130,6 +131,31 @@ function Grid:init()
 
 end
 
+function Grid:updateSounds()
+
+  local didPlay = false;
+  self:eachBlock(function(blk)
+  
+    if (not didPlay and blk.willBurst and blk.shrink / 10 < 1.0) then
+        Assets.sounds.chip:play();
+        blk.willBurst = nil;
+        didPlay = true;
+    end
+  
+  end);
+  
+  didPlay = false;
+  self:eachGem(function(gem)
+  
+    if (not didPlay and gem.willBurst and gem.shrink / 10 < 1.0) then
+        Assets.sounds.glass:play();
+        gem.willBurst = nil;
+        didPlay = true;
+    end
+    
+  end);
+end
+
 function Grid:draw(state)
     local gfx = state.gfx;
     local clr = love.graphics.setColor;
@@ -139,7 +165,7 @@ function Grid:draw(state)
 
     
     gfx.rect("fill", 
-        gfx.tileOffset(1), gfx.tileOffset(2), 
+        gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
     
@@ -159,6 +185,7 @@ function Grid:draw(state)
         
             gfx.drawTile(c, r + self.yOffset, math.min(1, blk.shrink / 10));
             blk.shrink = blk.shrink - state.dt * 100.0;
+          
             if (blk.shrink < 0) then
                 blk.shrink = nil;
             end
@@ -184,13 +211,13 @@ function Grid:draw(state)
 
     
     gfx.rect("line", 
-        gfx.tileOffset(1), gfx.tileOffset(2), 
+        gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
     
     love.graphics.setColor(0.0, 0.0, 0.0, 1.0);
     gfx.rect("fill", 
-        gfx.tileOffset(0.5), gfx.tileOffset(1), 
+        gfx.tileOffsetX(0.5), gfx.tileOffsetY(1), 
         gfx.tileSize(self.numCols + 1), gfx.tileSize(1)
     );
     
@@ -222,7 +249,6 @@ function Grid:triggerBlock(br, bc)
     local config = self.blocks[br][bc].config;
     local toCheck = Queue:new{};
     
-    Assets.sounds.explode:play();
     
     toCheck:pushright({br, bc, 0});
     
@@ -242,6 +268,7 @@ function Grid:triggerBlock(br, bc)
                 
                     if (blk.gem.shrink == nil) then
                         blk.gem.shrink = blk.gem.shrink or (10 + dist * 10);
+                        blk.gem.willBurst = true;
                         local score = self:gemScore(blk.gem.w, blk.gem.h);
                         State.score = State.score + score;
                     end
@@ -250,6 +277,7 @@ function Grid:triggerBlock(br, bc)
                 else
                     State.score = State.score + 10;
                     blk.shrink = 10 + dist * 10;
+                    blk.willBurst = true;
                 end
                 
                 toCheck:pushright{r-1, c, dist+1};
@@ -583,7 +611,8 @@ function Grid:clear()
 end
 
 function Grid:update(state)
-    
+    self:updateSounds();
+
     
     local difficulty = math.floor(self.totalTime) / 10.0;
     difficulty = difficulty ^ 0.5;
@@ -745,10 +774,11 @@ function love.load()
     resize(w,h);
     
     Assets.sounds = {
-      zap = love.audio.newSource("sounds/laser.wav", "static"),
-      explode = love.audio.newSource("sounds/explosion.wav", "static"),
-      bounce = love.audio.newSource("sounds/bounce.wav", "static"),
-      attach = love.audio.newSource("sounds/attach.wav", "static")
+      zap =     Sound:new("sounds/laser.wav", 3),
+      chip = Sound:new("sounds/chip.wav",  15),
+      bounce =  Sound:new("sounds/bounce.wav",  2),
+      attach =  Sound:new("sounds/attach.wav",  2),
+      glass = Sound:new("sounds/glass.wav",  15),
     }  
     
     for k,v in pairs(Assets.sounds) do
@@ -776,6 +806,7 @@ function love.update(dt)
         State.launcher:reset();
     end
     
+    
 end
 
 
@@ -789,21 +820,18 @@ State.gfx = {
         return State.gfx.pts(s * 11)
     end,
     
-    tileOffset = function(s)
+    tileOffsetX = function(s)
+        return State.gfx.tileSize(s) + State.gfx.pts(30);
+    end,
+    
+    tileOffsetY = function(s)
         return State.gfx.tileSize(s) + State.gfx.pts(-5);
     end,
     
     drawGem = function(gem, yOffset)
         
         love.graphics.setColor(gem.config.color);
-        
-        --[[State.gfx.rect("fill", 
-            State.gfx.tileOffset(gem.c), 
-            State.gfx.tileOffset(gem.r),
-            State.gfx.tileSize(gem.w),
-            State.gfx.tileSize(gem.h));
-        ]]
-            
+
         local shrink = gem.shrink;
         if (shrink == nil or shrink > 10) then
             shrink = 1;
@@ -814,21 +842,18 @@ State.gfx = {
         local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
         
         love.graphics.draw(Assets.images.gem,
-           State.gfx.tileOffset(ox), 
-           State.gfx.tileOffset(oy),
+           State.gfx.tileOffsetX(ox), 
+           State.gfx.tileOffsetY(oy),
            0,
            State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
         
         love.graphics.setColor(1,1,1,1);
         
         love.graphics.draw(Assets.images.sheen,
-           State.gfx.tileOffset(ox), 
-           State.gfx.tileOffset(oy),
+           State.gfx.tileOffsetX(ox), 
+           State.gfx.tileOffsetY(oy),
            0,
            State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
-                  
-            
-        
     end,
     
     drawTile = function(x, y, shrink)
@@ -836,31 +861,25 @@ State.gfx = {
             shrink = 1;
         end
         
-        --[[
-        State.gfx.rect("fill", 
-            State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
-            State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
-            State.gfx.tileSize(1 * shrink),
-            State.gfx.tileSize(1 * shrink));
-           ]] 
+
         love.graphics.draw(Assets.images.gem,
-           State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
-           State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
+           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
+           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
            0,
            State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
         
         love.graphics.setColor(1,1,1,1);
         
         love.graphics.draw(Assets.images.sheen,
-           State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
-           State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
+           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
+           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
            0,
            State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
             
     end,
     
     pixToOffset = function(x, y)
-        return (x - State.gfx.pts(1)) / State.gfx.tileSize(1), (y - State.gfx.pts(1)) / State.gfx.tileSize(1);
+        return (x - State.gfx.pts(30)) / State.gfx.tileSize(1), (y - State.gfx.pts(-5)) / State.gfx.tileSize(1);
     end,
     
     rect = love.graphics.rectangle
