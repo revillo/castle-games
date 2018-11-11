@@ -20,13 +20,20 @@ Class = {}
 
 local LEVELS = {
     --colors  --columns --scrollSpeed --scoreNeeded
-    {  2,        5,        0.15,           1000 },
-    {  2,        6,        0.16,           2000 },
+    {  2,        5,        0.15,          1000 },
+    {  2,        6,        0.16,          2000 },
     {  2,        7,        0.17,          4000 },
     {  2,        8,        0.19,          7000 },
-    {  2,        9,        0.22,         10000 },
-    {  2,        10,       0.24,         15000 }, 
-    {  3,        10,       0.2,          1000000 }
+    {  2,        9,        0.22,         10000 }, 
+    
+    {  2,        10,        0.23,        12000 }, 
+    {  2,        11,        0.24,        14000 }, 
+    {  2,        5,        0.3,          16000 }, 
+    {  2,        7,       0.33,          18000 }, 
+    {  2,        8,       0.34,          20000 }, 
+    
+    {  2,        10,       0.34,         22000 }, 
+    {  3,        5,       0.15,          25000} 
 }
 
 
@@ -625,7 +632,7 @@ function Grid:update(state)
         
         local didLose = false;
         
-        self:eachBlockInRow(self.numRows, function(block)
+        self:eachBlockInRow(self.numRows - 1, function(block)
           if (block.status == 1) then
             didLose = true;
           end
