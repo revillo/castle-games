@@ -1,6 +1,7 @@
 --http://localhost:4000/blocks.lua
 
-local VOLUME = 0
+local VOLUME = 0.5
+local PNG_SIZE = 32
 
 local Vec2 = require("lib/vec2")
 function vec2(x, y) 
@@ -15,6 +16,18 @@ Assets = {}
 local PIXEL = 1/200
 
 Class = {}
+
+local LEVELS = {
+    --colors  --columns --scrollSpeed --scoreNeeded
+    {  2,        5,        0.15,           1000 },
+    {  2,        6,        0.16,           2000 },
+    {  2,        7,        0.17,          4000 },
+    {  2,        8,        0.19,          7000 },
+    {  2,        9,        0.22,         10000 },
+    {  2,        10,       0.24,         15000 }, 
+    {  3,        10,       0.2,          1000000 }
+}
+
 
 function Class:new(o)
     o = o or {};
@@ -34,7 +47,7 @@ Grid = Class:new();
 BlockType = {
     
     Blue = {
-        color = {0, 0.0, 1.0, 1.0} 
+        color = {0, 0.5, 1.0, 1.0} 
     },
     
     Red = {
@@ -51,13 +64,61 @@ BlockType = {
 
 }
 
+function Grid:nextLevel()
+    
+    self:setLevel( (self.levelNumber or 0) + 1 );
+
+end
+
+function Grid:setLevel(n)
+
+    local level = LEVELS[n];
+    local config = {};
+    
+    self.levelNumber = n;
+    
+    config.maxRows = 15;
+    config.bombChance = 0.25;
+    
+    if (level[1] == 2) then
+        config.blockConfigs = {BlockType.Blue, BlockType.Red};
+    elseif(level[1] == 3) then
+        config.blockConfigs = {BlockType.Blue, BlockType.Red, BlockType.Green};
+    elseif(level[1] == 4) then
+        config.blockConfigs = {BlockType.Blue, BlockType.Red, BlockType.Green, BlockType.Yellow};
+    end
+    
+    config.scrollSpeed = level[3];
+    config.scoreNeeded = level[4];
+    
+    self.numCols = level[2];
+    self.blocks = {};
+        
+    self.config = config;
+    self.blocks = {};
+    self.gems = {};
+    self.yOffset = 0;
+    self.numRows = 0;
+
+    for r = 1, self.config.maxRows do
+        self:addRow();
+    end
+    
+    for r = 1, 2 do
+        self:recycle();
+    end
+    
+    self:dropOrphans();
+end
+
 function Grid:init()
-    self.numCols = 11;
+    self.numCols = 8;
     self.numRows = 0;
     self.yOffset = 0;
     self.blocks = {};
     self.gems = {};
     self.gemID = 0;
+    
     self.config = {
         blockConfigs = {BlockType.Blue, BlockType.Red},
         maxRows = 15,
@@ -65,16 +126,8 @@ function Grid:init()
     }
     
     self.totalTime = 0;
-    
-    for r = 1, self.config.maxRows do
-        self:addRow();
-    end
-    
-    for r = 1, 4 do
-        self:recycle();
-    end
-    
-    self:dropOrphans();
+    self:setLevel(1);
+
 end
 
 function Grid:draw(state)
@@ -82,13 +135,14 @@ function Grid:draw(state)
     local clr = love.graphics.setColor;
     
     love.graphics.setLineWidth(state.unit);
-    love.graphics.setColor(0.0, 0.8, 1.0, 1.0);
+    love.graphics.setColor(0.1, 0.1, 0.1, 1.0);
+
     
-    
-    gfx.rect("line", 
-        gfx.tileOffset(1), gfx.tileOffset(1), 
-        gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows)
+    gfx.rect("fill", 
+        gfx.tileOffset(1), gfx.tileOffset(2), 
+        gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
+    
     
     --draw blocks
     self:eachBlock(function(blk,r , c)
@@ -99,11 +153,11 @@ function Grid:draw(state)
         
         elseif (blk.status == 1) then
             
-            gfx.drawTile(c, r);
+            gfx.drawTile(c, r + self.yOffset);
                         
         elseif (blk.shrink) then
         
-            gfx.drawTile(c, r, math.min(1, blk.shrink / 10));
+            gfx.drawTile(c, r + self.yOffset, math.min(1, blk.shrink / 10));
             blk.shrink = blk.shrink - state.dt * 100.0;
             if (blk.shrink < 0) then
                 blk.shrink = nil;
@@ -115,7 +169,7 @@ function Grid:draw(state)
     for k,gem in pairs(self.gems) do
         if (gem) then
     
-            gfx.drawGem(gem);
+            gfx.drawGem(gem, self.yOffset);
             
             if (gem.shrink ~= nil) then
                 gem.shrink = gem.shrink - state.dt * 100.0;
@@ -125,6 +179,20 @@ function Grid:draw(state)
             end
         end
     end
+    
+    love.graphics.setColor(0.0, 0.8, 1.0, 1.0);
+
+    
+    gfx.rect("line", 
+        gfx.tileOffset(1), gfx.tileOffset(2), 
+        gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
+    );
+    
+    love.graphics.setColor(0.0, 0.0, 0.0, 1.0);
+    gfx.rect("fill", 
+        gfx.tileOffset(0.5), gfx.tileOffset(1), 
+        gfx.tileSize(self.numCols + 1), gfx.tileSize(1)
+    );
     
 end
 
@@ -148,24 +216,7 @@ function Grid:addRow()
     end
 end
 
-function Grid:projectileTouchesBlock(proj, r, c)
-    
-    local pc, pr = proj.position.x, proj.position.y
-    
-    if (self.blocks[r] and self.blocks[r][c]) then
-        local blk = self.blocks[r][c];
-        
-        if (blk.status == 1) then    
-            if (math.abs(r - pr) < 0.75 and math.abs(c - pc) < 0.75) then
-                return true;
-            end
-           
-        end
-    end
 
-    return false;
-    
-end
 
 function Grid:triggerBlock(br, bc)
     local config = self.blocks[br][bc].config;
@@ -185,12 +236,19 @@ function Grid:triggerBlock(br, bc)
             blk = self.blocks[r][c];
             if (blk.status == 1 and blk.config == config) then
             
-                State.score = State.score + 10;
                 blk.status = 0;
                 
                 if (blk.gem) then
-                    blk.gem.shrink = blk.gem.shrink or (10 + dist * 10);
+                
+                    if (blk.gem.shrink == nil) then
+                        blk.gem.shrink = blk.gem.shrink or (10 + dist * 10);
+                        local score = self:gemScore(blk.gem.w, blk.gem.h);
+                        State.score = State.score + score;
+                    end
+                    
+                    
                 else
+                    State.score = State.score + 10;
                     blk.shrink = 10 + dist * 10;
                 end
                 
@@ -347,7 +405,7 @@ end
 
 function Grid:insertProjectile(proj)
 
-    local pc, pr = math.floor(proj.position.x + 0.5), math.floor(proj.position.y + 0.5);
+    local pc, pr = math.floor(proj.position.x + 0.5), math.floor(proj.position.y + 0.5 - self.yOffset);
     
     local bc , br, bd = -1, -1, 1000
     
@@ -376,6 +434,25 @@ function Grid:insertProjectile(proj)
     Assets.sounds.attach:play();
 end
 
+function Grid:projectileTouchesBlock(proj, r, c)
+    
+    local pc, pr = proj.position.x, proj.position.y - self.yOffset;
+    
+    if (self.blocks[r] and self.blocks[r][c]) then
+        local blk = self.blocks[r][c];
+        
+        if (blk.status == 1) then    
+            if (math.abs(r - pr) < 0.75 and math.abs(c - pc) < 0.75) then
+                return true;
+            end
+           
+        end
+    end
+
+    return false;
+    
+end
+
 function Grid:considerProjectile(proj)
   
     if(proj.position.y < 0) then
@@ -383,7 +460,7 @@ function Grid:considerProjectile(proj)
         return true;
     end
   
-    local pc, pr = math.floor(proj.position.x + 0.5), math.floor(proj.position.y + 0.5);
+    local pc, pr = math.floor(proj.position.x + 0.5), math.floor(proj.position.y + 0.5 - self.yOffset);
    
     for c = pc - 1, pc + 1 do for r = pr-1, pr do
         if (self:projectileTouchesBlock(proj, r, c)) then
@@ -513,7 +590,7 @@ function Grid:update(state)
     
     self.totalTime = self.totalTime + state.dt;
     
-    self.yOffset = self.yOffset + state.dt * (0.15 + (difficulty * 0.01));
+    self.yOffset = self.yOffset + state.dt * self.config.scrollSpeed;
     
     if (self.yOffset > 1.0) then
         
@@ -563,6 +640,12 @@ Launcher = Class:new();
 
 function Launcher:init()
     
+    self:reset();
+    
+end
+
+function Launcher:reset()
+
     self.projectiles = {};
     self.position = vec2(self.grid.numCols / 2 + 0.5, self.grid.config.maxRows);
     self.projectileUUID = 1;
@@ -570,6 +653,7 @@ function Launcher:init()
     self.nextProjectile = self:createProjectile();
     self.nextProjectile.position:addY(-1);
     self.projectileOnDeck = self:createProjectile();
+    
 end
 
 function Launcher:createProjectile()
@@ -578,7 +662,7 @@ function Launcher:createProjectile()
         position = vec2(self.position.x, self.position.y + 2)
     });
     
-    if (math.random() < 0.25) then
+    if (math.random() < self.grid.config.bombChance) then
         projectile.isBomb = true;
     else
         projectile.config = self.grid:sampleBlockConfigs();
@@ -686,6 +770,12 @@ function love.update(dt)
     State.dt = dt;
     State.launcher:update(State);
     State.grid:update(State);
+    
+    if (State.score > State.grid.config.scoreNeeded) then
+        State.grid:nextLevel();
+        State.launcher:reset();
+    end
+    
 end
 
 
@@ -696,14 +786,14 @@ State.gfx = {
     end,
     
     tileSize = function(s)
-        return State.gfx.pts(s * 10)
+        return State.gfx.pts(s * 11)
     end,
     
     tileOffset = function(s)
-        return State.gfx.tileSize(s) + State.gfx.pts(1);
+        return State.gfx.tileSize(s) + State.gfx.pts(-5);
     end,
     
-    drawGem = function(gem)
+    drawGem = function(gem, yOffset)
         
         love.graphics.setColor(gem.config.color);
         
@@ -721,13 +811,13 @@ State.gfx = {
             shrink = shrink / 10;
         end
         
-        local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h
+        local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
         
         love.graphics.draw(Assets.images.gem,
            State.gfx.tileOffset(ox), 
            State.gfx.tileOffset(oy),
            0,
-           State.gfx.tileSize(gem.w * shrink)/32, State.gfx.tileSize(gem.h * shrink)/32);
+           State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
         
         love.graphics.setColor(1,1,1,1);
         
@@ -735,7 +825,7 @@ State.gfx = {
            State.gfx.tileOffset(ox), 
            State.gfx.tileOffset(oy),
            0,
-           State.gfx.tileSize(gem.w * shrink)/32, State.gfx.tileSize(gem.h * shrink)/32);
+           State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
                   
             
         
@@ -745,7 +835,7 @@ State.gfx = {
         if (shrink == nil) then
             shrink = 1;
         end
-      
+        
         --[[
         State.gfx.rect("fill", 
             State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
@@ -757,7 +847,7 @@ State.gfx = {
            State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
            State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
            0,
-           State.gfx.tileSize(1 * shrink)/32, State.gfx.tileSize(1 * shrink)/32);
+           State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
         
         love.graphics.setColor(1,1,1,1);
         
@@ -765,7 +855,7 @@ State.gfx = {
            State.gfx.tileOffset(x + ((1-shrink) * 0.5)), 
            State.gfx.tileOffset(y + ((1-shrink) * 0.5)),
            0,
-           State.gfx.tileSize(1 * shrink)/32, State.gfx.tileSize(1 * shrink)/32);
+           State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
             
     end,
     
@@ -780,7 +870,7 @@ function drawUI(state)
     
     love.graphics.setColor(1,1,1,1);
     
-    love.graphics.print("Score: " .. State.score, 0, 0, 0, 1, 1);
+    love.graphics.print("Score: " .. State.score .. " / " .. State.grid.config.scoreNeeded, 0, 0, 0, 1, 1);
     
 end
 
@@ -805,6 +895,11 @@ end
 function love.keypressed(k)
     --State.keyboard[k] = 1;
     State.grid:addRow();
+    
+    if (k == "w") then
+        State.grid:nextLevel();
+        State.launcher:reset();
+    end
 
 end
 
