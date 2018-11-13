@@ -22,7 +22,7 @@ Class = {}
 local LEVELS = {
     --colors | columns | scrollSpeed | scoreNeeded
     {  2,        5,        0.15,          1500 },
-    {  2,        6,        0.16,          4000 },
+    {  2,        6,        0.16,          3500 },
     {  2,        7,        0.17,          9000 },
     {  2,        8,        0.19,         14000 },
     {  2,        9,        0.22,         19000 }, 
@@ -209,6 +209,7 @@ function Grid:draw(state)
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
     
+    self.animating = false;
     
     --draw blocks
     self:eachBlock(function(blk,r , c)
@@ -225,7 +226,8 @@ function Grid:draw(state)
         
             gfx.drawTile(c, r + self.yOffset, math.min(1, blk.shrink));
             blk.shrink = blk.shrink - state.dt * 10.0;
-          
+            self.animating = true;
+            
             if (blk.shrink < 0) then
                 blk.shrink = nil;
                 blk.willBurst = nil;
@@ -241,10 +243,12 @@ function Grid:draw(state)
             
             if (gem.shrink ~= nil) then
                 
-                
+                self.animating = true;
+
                 if (gem.shrink > 1) then
                     gem.shrink = gem.shrink - state.dt * 10.0;
                 elseif (gem.shrink < 0) then
+                    gem.shrink = nil;
                     self.gems[gem.id] = nil;
                 else
                     gem.shrink = gem.shrink - state.dt * 10.0 / math.min(gem.w, gem.h);
@@ -297,6 +301,7 @@ function Grid:triggerBlock(br, bc)
     local config = self.blocks[br][bc].config;
     local toCheck = Queue:new{};
     
+    self.animating = true;
     
     toCheck:pushright({br, bc, 0});
     
@@ -688,9 +693,17 @@ function Grid:checkLose()
 
 end
 
+function Grid:pause()
+    self.paused = true;
+end
+
 function Grid:update(state)
     self:updateSounds();
     self.textAnim:update(state.dt);
+    
+    if (self.paused) then
+        return
+    end;
     
     if (self:checkLose()) then
     
@@ -766,6 +779,9 @@ end
 
 function Launcher:fire(x, y) 
 
+    if (self.paused) then
+        return
+    end
 
     Assets.sounds.zap:play();
     
@@ -805,6 +821,10 @@ function Launcher:draw(state)
     self.nextProjectile:draw(state);
     self.projectileOnDeck:draw(state);
 
+end
+
+function Launcher:pause()
+    self.paused = true;
 end
 
 function Launcher:update(state)
@@ -861,15 +881,27 @@ function love.load()
    
 end
 
+function goNextLevel()
+    State.grid:nextLevel();
+    State.launcher:reset();
+    Assets.sounds.win:play();
+end
+
 function love.update(dt)
     State.dt = dt;
     State.launcher:update(State);
     State.grid:update(State);
     
     if (State.score > State.grid.config.scoreNeeded) then
-        State.grid:nextLevel();
-        State.launcher:reset();
-        Assets.sounds.win:play();
+        State.grid:pause();
+        State.launcher:pause();
+        
+        if (not State.grid.animating) then
+            State.grid.paused = false;
+            State.launcher.paused = false;
+            goNextLevel();
+        end
+        
     end
     
     
