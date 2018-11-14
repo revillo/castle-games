@@ -1,8 +1,6 @@
 --http://localhost:4000/blocks.lua
 
-local VOLUME = 0.5
-local PNG_SIZE = 256
-
+--Scripts--
 local Vec2 = require("lib/vec2")
 function vec2(x, y) 
     return Vec2:new{x=x or 0, y=y or 0};
@@ -12,34 +10,145 @@ local Array = require("lib/array")
 local Queue = require("lib/queue")
 local Sound = require("lib/sound");
 local TextAnimator = require("lib/TextAnimator")
+local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/master/lib/easing.lua")
 
-State = {}
+
+--CONSTANTS--
+
+local VOLUME = 0.5;
+local PNG_SIZE = 256;
+local RELOAD_DURATION = 0.5;
+local POINT_SIZE = 1/200;
+
+local EASING = function(t) 
+
+  local b = 0;
+  local c = 1;
+  local d = 1;
+  
+  
+  return easing.inOutExpo(t,b,c,d);
+  --return t * t;
+end
+
+--GLOBALS--
+State = {
+  paused = false;
+}
 Assets = {}
-local POINT_SIZE = 1/200
-
 Class = {}
 
 local LEVELS = {
     --colors | columns | scrollSpeed | scoreNeeded
-    {  2,        5,        0.15,          1500 },
-    {  2,        6,        0.16,          3500 },
-    {  2,        7,        0.17,          9000 },
+    {  2,        5,        0.15,          2000 },
+    {  2,        6,        0.17,          4500 },
+    {  2,        7,        0.18,          9000 },
     {  2,        8,        0.19,         14000 },
     {  2,        9,        0.22,         19000 }, 
     
     {  2,        10,        0.23,        24000 }, 
-    {  2,        11,        0.24,        26000 }, 
-    {  2,        5,        0.3,          30000 }, 
-    {  2,        7,       0.33,          33000 }, 
-    {  2,        8,       0.34,          36000 }, 
+    {  2,        11,        0.24,        29000 }, 
+    {  2,        5,        0.3,          34000 }, 
+    {  2,        7,       0.33,          39000 }, 
+    {  2,        8,       0.34,          44000 }, 
     
-    {  2,        10,       0.34,         39000 }, 
-    {  3,        5,       0.15,          42000 },
-    {  3,        6,       0.17,          45000 },
-    {  3,        7,       0.20,          50000 },
-    {  3,        8,       0.23,          60000 }
+    {  2,        10,       0.34,         49000 }, 
+    {  3,        5,       0.15,          54000 },
+    {  3,        6,       0.17,          59000 },
+    {  3,        7,       0.20,          64000 },
+    {  3,        8,       0.23,          69000 }
 }
 
+
+State.gfx = {
+
+    pts = function(s)
+        return State.unit * (s);
+    end,
+    
+    tileSize = function(s)
+        return State.gfx.pts(s * 11)
+    end,
+    
+    tileOffsetX = function(s)
+        return State.gfx.tileSize(s) + State.gfx.pts(30);
+    end,
+    
+    tileOffsetY = function(s)
+        return State.gfx.tileSize(s) + State.gfx.pts(-5);
+    end,
+    
+    drawGem = function(gem, yOffset)
+        
+        love.graphics.setColor(gem.config.color);
+
+        local shrink = gem.shrink;
+        if (shrink == nil or shrink > 1) then
+            shrink = 1;
+        end
+        
+        local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
+        
+        love.graphics.draw(Assets.images.gem,
+           State.gfx.tileOffsetX(ox), 
+           State.gfx.tileOffsetY(oy),
+           0,
+           State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
+        
+        love.graphics.setColor(1,1,1,1);
+        
+        love.graphics.draw(Assets.images.sheen,
+           State.gfx.tileOffsetX(ox), 
+           State.gfx.tileOffsetY(oy),
+           0,
+           State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
+    end,
+    
+    drawIndicator = function(x, y, shrink)
+      
+          local clr = shrink;
+          love.graphics.setColor(clr,clr,clr * 0.9,1);
+        
+         love.graphics.circle(
+           "fill",
+           State.gfx.tileOffsetX(x + 0.5), 
+           State.gfx.tileOffsetY(y + 0.5),
+           State.gfx.tileSize(0.1 * shrink),
+           32
+         );
+    
+    end,
+    
+    drawTile = function(x, y, shrink)
+        if (shrink == nil) then
+            shrink = 1;
+        end
+        
+
+        love.graphics.draw(Assets.images.gem,
+           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
+           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
+           0,
+           State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
+        
+        love.graphics.setColor(1,1,1,1);
+        
+        love.graphics.draw(Assets.images.sheen,
+           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
+           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
+           0,
+           State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
+            
+    end,
+    
+    pixToOffset = function(x, y)
+        return (x - State.gfx.pts(30)) / State.gfx.tileSize(1), (y - State.gfx.pts(-5)) / State.gfx.tileSize(1);
+    end,
+    
+    rect = love.graphics.rectangle
+}
+
+--CLASSES--
 
 function Class:new(o)
     o = o or {};
@@ -82,7 +191,8 @@ function Grid:nextLevel()
 end
 
 function Grid:setLevel(n)
-
+    n = n % #LEVELS;
+    
     local level = LEVELS[n];
     local config = {};
     
@@ -109,12 +219,14 @@ function Grid:setLevel(n)
     self.blocks = {};
     self.gems = {};
     self.yOffset = 0;
+    self.offsetTime = 0;
     self.numRows = 0;
 
     for r = 1, self.config.maxRows do
         self:addRow();
     end
     
+    self:recycle();
     self:recycle();
     
     self:dropOrphans();
@@ -132,6 +244,7 @@ function Grid:init()
     self.numCols = 8;
     self.numRows = 0;
     self.yOffset = 0;
+    self.offsetTime = 0;
     self.blocks = {};
     self.gems = {};
     self.gemID = 0;
@@ -709,11 +822,15 @@ function Grid:update(state)
     
     
     else
-        self.yOffset = self.yOffset + state.dt * self.config.scrollSpeed;
+        self.offsetTime = self.offsetTime + state.dt * self.config.scrollSpeed;
+        self.yOffset = EASING(self.offsetTime);
+        
+        --self.yOffset = self.yOffset + state.dt * self.config.scrollSpeed;
 
-        if (self.yOffset > 1.0) then
+        if (self.offsetTime > 1.0) then
             self:recycle();
             self:dropOrphans();
+            self.offsetTime = 0.0;
             self.yOffset = 0.0;
         end
     end
@@ -745,6 +862,11 @@ Launcher = Class:new();
 
 function Launcher:init()
     
+    
+    self.indicatorDelta = vec2(0, 1);
+    self.indicatorTemp = vec2(0,0);
+    self.reloadTime = 0;
+        
     self:reset();
     
 end
@@ -779,19 +901,23 @@ end
 
 function Launcher:fire(x, y) 
 
-    if (self.paused) then
+    if (self.paused or self.reloadTime < 1.0) then
         return
     end
 
+    self.reloadTime = 0;
+    
     Assets.sounds.zap:play();
     
     local projectile = self.nextProjectile;
     
     projectile.direction = vec2(x - self.position.x, y - self.position.y);  
-    projectile.direction.y = math.min(projectile.direction.y, -0.5);
     
-    projectile.position = vec2(self.position.x, self.position.y);    
     projectile.direction:normalize();
+    projectile.direction.y = math.min(projectile.direction.y, -0.5);
+    projectile.direction:normalize();
+
+    projectile.position = vec2(self.position.x, self.position.y);    
     projectile.uuid = self.projectileUUID;
 
     
@@ -814,13 +940,53 @@ function Launcher:eachProjectile(fn)
     
 end
 
+function Launcher:setTarget(x, y)
+
+
+  local cx, cy = self.indicatorDelta.x, self.indicatorDelta.y;
+  
+  self.indicatorDelta:set(x, y);
+  self.indicatorDelta:sub(self.position);
+  self.indicatorDelta:normalize();
+  
+  if (self.indicatorDelta.y > -0.3) then
+    self.indicatorDelta:set(cx, cy);
+    return;
+  end
+    
+end
+
+function Launcher:drawIndicator(state)
+  
+  if (self.reloadTime < 1.0) then
+    return;
+  end
+  
+  local cycleT = state.clock % 1.0 - 1.0;
+  --cycleT = 0;
+  
+  for i = 1, 4 do
+  
+    --cycle = (cycle + 0.4) % 1.2;
+    
+    local increment = i;    
+
+    self.indicatorTemp:set(self.position.x, self.position.y);
+    self.indicatorTemp:addScaled(self.indicatorDelta, increment * 0.4);
+    
+    state.gfx.drawIndicator(self.indicatorTemp.x, self.indicatorTemp.y, (math.sin(-state.clock * 10.0 + i) * 0.1 + 0.8) * (2.0 - (i * 0.4)));
+    
+  end
+
+end
+
 function Launcher:draw(state)
     
     self:eachProjectile(function(proj) proj:draw(state) end);
     
     self.nextProjectile:draw(state);
     self.projectileOnDeck:draw(state);
-
+    self:drawIndicator(state);
 end
 
 function Launcher:pause()
@@ -828,6 +994,8 @@ function Launcher:pause()
 end
 
 function Launcher:update(state)
+
+    self.reloadTime = self.reloadTime + state.dt / RELOAD_DURATION;
 
     self:eachProjectile(function(proj) 
         proj:update(state)
@@ -876,6 +1044,7 @@ function love.load()
     }
     
     State.score = 0;
+    State.clock = 0;
     State.grid = Grid:new();
     State.launcher = Launcher:new{grid = State.grid};
    
@@ -888,7 +1057,12 @@ function goNextLevel()
 end
 
 function love.update(dt)
+    if (State.paused) then
+      return
+    end
+
     State.dt = dt;
+    State.clock = State.clock + dt;
     State.launcher:update(State);
     State.grid:update(State);
     
@@ -904,82 +1078,7 @@ function love.update(dt)
         
     end
     
-    
 end
-
-
-State.gfx = {
-
-    pts = function(s)
-        return State.unit * (s);
-    end,
-    
-    tileSize = function(s)
-        return State.gfx.pts(s * 11)
-    end,
-    
-    tileOffsetX = function(s)
-        return State.gfx.tileSize(s) + State.gfx.pts(30);
-    end,
-    
-    tileOffsetY = function(s)
-        return State.gfx.tileSize(s) + State.gfx.pts(-5);
-    end,
-    
-    drawGem = function(gem, yOffset)
-        
-        love.graphics.setColor(gem.config.color);
-
-        local shrink = gem.shrink;
-        if (shrink == nil or shrink > 1) then
-            shrink = 1;
-        end
-        
-        local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
-        
-        love.graphics.draw(Assets.images.gem,
-           State.gfx.tileOffsetX(ox), 
-           State.gfx.tileOffsetY(oy),
-           0,
-           State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
-        
-        love.graphics.setColor(1,1,1,1);
-        
-        love.graphics.draw(Assets.images.sheen,
-           State.gfx.tileOffsetX(ox), 
-           State.gfx.tileOffsetY(oy),
-           0,
-           State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
-    end,
-    
-    drawTile = function(x, y, shrink)
-        if (shrink == nil) then
-            shrink = 1;
-        end
-        
-
-        love.graphics.draw(Assets.images.gem,
-           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
-           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
-           0,
-           State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
-        
-        love.graphics.setColor(1,1,1,1);
-        
-        love.graphics.draw(Assets.images.sheen,
-           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
-           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
-           0,
-           State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
-            
-    end,
-    
-    pixToOffset = function(x, y)
-        return (x - State.gfx.pts(30)) / State.gfx.tileSize(1), (y - State.gfx.pts(-5)) / State.gfx.tileSize(1);
-    end,
-    
-    rect = love.graphics.rectangle
-}
 
 function drawUI(state)
     
@@ -992,13 +1091,23 @@ end
 
 function love.draw()
   
-  love.graphics.setBlendMode("alpha")
-
+  --love.graphics.setBlendMode("alpha")
+  
   drawUI(State);
+  
+  
   State.grid:draw(State);
   State.launcher:draw(State);
   
 end
+
+function love.mousemoved( x, y )
+
+  local tx, ty = State.gfx.pixToOffset(x, y);
+  State.launcher:setTarget(tx - 0.5, ty - 0.5);
+  
+end
+
 
 function love.mousepressed( x, y, button, istouch, presses )
     
@@ -1016,6 +1125,10 @@ function love.keypressed(k)
         State.grid:nextLevel();
         State.launcher:reset();
         Assets.sounds.win:play();
+    end
+    
+    if (k == "p") then
+        State.paused = not State.paused;
     end
 
 end
