@@ -15,10 +15,12 @@ local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/mas
 
 --CONSTANTS--
 
-local VOLUME = 0.5;
+local VOLUME = 0.1;
 local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
 local POINT_SIZE = 1/200;
+local GEM_SPEED = 23;
+local GEM_SHEEN = 0.6;
 
 local EASING = function(t) 
 
@@ -95,13 +97,15 @@ State.gfx = {
            0,
            State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
         
-        love.graphics.setColor(1,1,1,1);
-        
+        love.graphics.setColor(1,1,1,GEM_SHEEN);
+
+          
         love.graphics.draw(Assets.images.sheen,
            State.gfx.tileOffsetX(ox), 
            State.gfx.tileOffsetY(oy),
            0,
            State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
+          
     end,
     
     drawIndicator = function(x, y, shrink)
@@ -131,14 +135,15 @@ State.gfx = {
            0,
            State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
         
-        love.graphics.setColor(1,1,1,1);
+        love.graphics.setColor(1,1,1,GEM_SHEEN);
         
+   
         love.graphics.draw(Assets.images.sheen,
            State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
            State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
            0,
            State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
-            
+           
     end,
     
     pixToOffset = function(x, y)
@@ -316,6 +321,8 @@ function Grid:draw(state)
     love.graphics.setLineWidth(state.unit);
     love.graphics.setColor(0.1, 0.1, 0.1, 1.0);
 
+    love.graphics.setScissor( gfx.tileOffsetX(1), gfx.tileOffsetY(2), gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1))
+
     
     gfx.rect("fill", 
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
@@ -370,18 +377,22 @@ function Grid:draw(state)
         end
     end
     
-    love.graphics.setColor(0.0, 0.8, 1.0, 1.0);
+    love.graphics.setColor(0.5, 0.5, 0.5, 0.5);
+    
+    love.graphics.setScissor(0, 0, State.width, State.height);
     
     gfx.rect("line", 
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
     
+    --[[
     love.graphics.setColor(0.0, 0.0, 0.0, 1.0);
     gfx.rect("fill", 
         gfx.tileOffsetX(0.5), gfx.tileOffsetY(1), 
         gfx.tileSize(self.numCols + 1), gfx.tileSize(1)
     );
+    ]]
     
     self.textAnim:draw();
 
@@ -717,7 +728,11 @@ function Grid:recycle()
     end
     
     table.remove(self.blocks, self.numRows);
-    table.insert(self.blocks, 1, tmpRow);    
+    table.insert(self.blocks, 1, tmpRow);  
+
+    self:eachGem(function(gem) 
+      gem.r = gem.r + 1;
+    end);
 end
 
 function Grid:eachBlock(fn)
@@ -840,7 +855,7 @@ Projectile = Class:new();
 
 function Projectile:update(state) 
     
-    self.position:addScaled(self.direction, state.dt * 15);
+    self.position:addScaled(self.direction, state.dt * GEM_SPEED);
     
 end
 
@@ -886,7 +901,7 @@ end
 function Launcher:createProjectile()
     
     local projectile = Projectile:new({
-        position = vec2(self.position.x, self.position.y + 2)
+        position = vec2(self.position.x, self.position.y + 1.5)
     });
     
     if (math.random() < self.grid.config.bombChance) then
@@ -925,7 +940,7 @@ function Launcher:fire(x, y)
     self.projectileUUID = self.projectileUUID + 1;
     
     self.nextProjectile = self.projectileOnDeck;
-    self.nextProjectile.position:set(self.position.x, self.position.y+1);
+    self.nextProjectile.position:set(self.position.x, self.position.y + 0.5);
     self.projectileOnDeck = self:createProjectile();
     
 end
@@ -1023,12 +1038,13 @@ end
 function love.load()
     local w, h = love.graphics.getDimensions();
     resize(w,h);
-    
+    love.graphics.setBackgroundColor( 0.05, 0.05, 0.05 )
+
     Assets.sounds = {
-      zap =     Sound:new("sounds/laser.wav", 3),
+      zap =     Sound:new("sounds/whoosh.wav", 3),
       chip = Sound:new("sounds/chip2.wav",  15),
-      bounce =  Sound:new("sounds/bounce.wav",  2),
-      attach =  Sound:new("sounds/attach.wav",  2),
+      bounce =  Sound:new("sounds/ping.wav",  5),
+      attach =  Sound:new("sounds/ping.wav",  2),
       glass = Sound:new("sounds/glass2.wav",  15),
       lose = Sound:new("sounds/lose.wav"),
       win = Sound:new("sounds/win.wav")
@@ -1037,6 +1053,8 @@ function love.load()
     for k,v in pairs(Assets.sounds) do
         v:setVolume(VOLUME);
     end
+    
+    Assets.sounds.zap:setVolume(0.5);
     
     Assets.images = {
       gem =  love.graphics.newImage("images/gem.png"),
