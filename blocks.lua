@@ -89,6 +89,8 @@ State.gfx = {
             shrink = 1;
         end
         
+        
+        
         local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
         
         love.graphics.draw(Assets.images.gem,
@@ -105,7 +107,7 @@ State.gfx = {
            State.gfx.tileOffsetY(oy),
            0,
            State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
-          
+           
     end,
     
     drawIndicator = function(x, y, shrink)
@@ -123,7 +125,8 @@ State.gfx = {
     
     end,
     
-    drawTile = function(x, y, shrink)
+    drawTile = function(x, y, shrink, isBomb)
+        
         if (shrink == nil) then
             shrink = 1;
         end
@@ -135,9 +138,16 @@ State.gfx = {
            0,
            State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
         
-        love.graphics.setColor(1,1,1,GEM_SHEEN);
         
-   
+
+        if (isBomb) then        
+        
+          --todo
+        
+        end
+        
+        love.graphics.setColor(1,1,1,GEM_SHEEN);
+
         love.graphics.draw(Assets.images.sheen,
            State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
            State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
@@ -266,7 +276,7 @@ function Grid:init()
 
 end
 
-function Grid:updateSounds()
+function Grid:updateEffects(state)
 
   local didPlay = false;
   self:eachBlock(function(blk, r, c)
@@ -307,6 +317,23 @@ function Grid:updateSounds()
             size = 2
         });
         
+        local s = love.graphics.newParticleSystem(Assets.images.shard, 100);
+        s:setParticleLifetime(0.1, 0.5) 
+        s:setEmissionRate(200)
+        s:setSizes(0.05)
+        s:setEmissionArea("uniform", State.gfx.tileSize(gem.w * 0.4), State.gfx.tileSize(gem.h * 0.4), 0, true);
+        s:setSpin(-30.0, 30.0);
+        s:setSizeVariation(1)
+        --local v = 1000.0
+        --s:setLinearAcceleration(-v, -v, v, v) -- Random movement in all directions.
+        s:setSpeed(200.0, 500.0);
+        s:setColors(255, 255, 255, 255, 255, 255, 255, 0) -- Fade to transparency.
+        gem.shards = s;
+        
+    end
+    
+    if (gem.shards) then
+      gem.shards:update(state.dt);
     end
     
   end);
@@ -371,6 +398,7 @@ function Grid:draw(state)
                     gem.shrink = nil;
                     self.gems[gem.id] = nil;
                 else
+                    --gem.shrink = gem.shrink - state.dt * 10.0 / math.min(gem.w, gem.h);
                     gem.shrink = gem.shrink - state.dt * 10.0 / math.min(gem.w, gem.h);
                 end
             end
@@ -386,6 +414,19 @@ function Grid:draw(state)
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
     
+    self:eachGem(function(gem) 
+      
+      love.graphics.setColor(gem.config.color);
+    
+       if (gem.shards) then        
+          love.graphics.draw(gem.shards, 
+            State.gfx.tileOffsetX(gem.c + gem.w * 0.5),
+            State.gfx.tileOffsetY(gem.r + gem.h * 0.5 + self.yOffset) 
+          );
+        end  
+    end);
+    love.graphics.setColor(1,1,1,1);
+
     --[[
     love.graphics.setColor(0.0, 0.0, 0.0, 1.0);
     gfx.rect("fill", 
@@ -422,6 +463,8 @@ end
 
 
 function Grid:triggerBlock(br, bc)
+    --Assets.sounds.bomb:play();
+
     local config = self.blocks[br][bc].config;
     local toCheck = Queue:new{};
     
@@ -826,7 +869,7 @@ function Grid:pause()
 end
 
 function Grid:update(state)
-    self:updateSounds();
+    self:updateEffects(state);
     self.textAnim:update(state.dt);
     
     if (self.paused) then
@@ -868,7 +911,7 @@ function Projectile:draw(state)
         love.graphics.setColor(self.config.color);
     end
     
-    gfx.drawTile(self.position.x, self.position.y);
+    gfx.drawTile(self.position.x, self.position.y, nil, self.isBomb);
 
 end
 
@@ -1043,11 +1086,12 @@ function love.load()
     Assets.sounds = {
       zap =     Sound:new("sounds/whoosh.wav", 3),
       chip = Sound:new("sounds/chip2.wav",  15),
-      bounce =  Sound:new("sounds/ping.wav",  5),
+      bounce =  Sound:new("sounds/bounce.wav",  5),
       attach =  Sound:new("sounds/ping.wav",  2),
       glass = Sound:new("sounds/glass2.wav",  15),
       lose = Sound:new("sounds/lose.wav"),
-      win = Sound:new("sounds/win.wav")
+      win = Sound:new("sounds/win.wav"),
+      --bomb = Sound:new("sounds/bomb.wav", 2)
     }  
     
     for k,v in pairs(Assets.sounds) do
@@ -1055,10 +1099,13 @@ function love.load()
     end
     
     Assets.sounds.zap:setVolume(0.5);
+    Assets.sounds.attach:setVolume(VOLUME);
+    --Assets.sounds.bomb:setVolume(VOLUME * 0);
     
     Assets.images = {
       gem =  love.graphics.newImage("images/gem.png"),
-      sheen =  love.graphics.newImage("images/sheen.png")
+      sheen =  love.graphics.newImage("images/sheen.png"),
+      shard =  love.graphics.newImage("images/shard.png"),
     }
     
     State.score = 0;
