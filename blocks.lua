@@ -317,17 +317,29 @@ function Grid:updateEffects(state)
             size = 2
         });
         
-        local s = love.graphics.newParticleSystem(Assets.images.shard, 100);
-        s:setParticleLifetime(0.1, 0.5) 
-        s:setEmissionRate(200)
-        s:setSizes(0.05)
-        s:setEmissionArea("uniform", State.gfx.tileSize(gem.w * 0.4), State.gfx.tileSize(gem.h * 0.4), 0, true);
-        s:setSpin(-30.0, 30.0);
+        local s = love.graphics.newParticleSystem(Assets.images.shard, 150);
+        s:setParticleLifetime(0.5, 1.0) 
+        s:setEmissionRate(0)
+        s:setSizes(0.05, 0.03)
+        s:setEmissionArea("uniform", State.gfx.tileSize(gem.w * 0.4), State.gfx.tileSize(gem.h * 0.4), 0, false);
+        s:setRotation( -3, 3 )
+        s:setSpin(-4.0, 4.0);
         s:setSizeVariation(1)
-        --local v = 1000.0
-        --s:setLinearAcceleration(-v, -v, v, v) -- Random movement in all directions.
-        s:setSpeed(200.0, 500.0);
-        s:setColors(255, 255, 255, 255, 255, 255, 255, 0) -- Fade to transparency.
+        
+       -- local v = 2.0
+       -- s:setLinearAcceleration(-v, -v, v, v) -- Random movement in all directions.
+        
+        s:setSpeed(-100, 100);
+        s:setLinearDamping(0.11, 0.11);
+        s:setColors(
+          255, 255, 255, 255, 
+          255, 255, 255, 0,
+          255, 255, 255, 125,
+          255, 255, 255, 0) -- Fade to transparency.
+          
+        
+        s:emit(150);
+
         gem.shards = s;
         
     end
