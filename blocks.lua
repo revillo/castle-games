@@ -212,6 +212,7 @@ function Grid:setLevel(n)
     local config = {};
     
     self.levelNumber = n;
+    self.danger = 0;
     
     config.maxRows = 15;
     config.bombChance = 0.25;
@@ -279,11 +280,15 @@ end
 function Grid:updateEffects(state)
 
   local didPlay = false;
+  local highestRow = -1;
+  
   self:eachBlock(function(blk, r, c)
   
     if (blk.willBurst and blk.shrink < 1.0) then
         blk.willBurst = nil;
         
+        State.score = State.score + 10;
+
         if (not didPlay) then
             didPlay = true;
             Assets.sounds.chip:play();
@@ -296,9 +301,15 @@ function Grid:updateEffects(state)
             size = 1
         });
     end
+    
+    if (blk.status == 1 and r > highestRow) then
+      highestRow = r;
+    end
   
   end);
   
+  self.danger = highestRow / self.numRows;
+
   didPlay = false;
   self:eachGem(function(gem)
   
@@ -308,9 +319,13 @@ function Grid:updateEffects(state)
             didPlay = true;
             Assets.sounds.glass:play();
         end
+        
+        local gmScore = self:gemScore(gem.w, gem.h);
+    
+        State.score = State.score + gmScore;
     
         gem.willBurst = nil;
-        self.textAnim:addAnimation("+" .. self:gemScore(gem.w, gem.h), nil, {
+        self.textAnim:addAnimation("+" .. gmScore, nil, {
             duration = 1.5,
             x = State.gfx.tileOffsetX(gem.c + 0.2 * gem.w),
             y = State.gfx.tileOffsetY(gem.r + 0.7 * gem.h),
@@ -326,18 +341,14 @@ function Grid:updateEffects(state)
         s:setSpin(-4.0, 4.0);
         s:setSizeVariation(1)
         
-       -- local v = 2.0
-       -- s:setLinearAcceleration(-v, -v, v, v) -- Random movement in all directions.
-        
         s:setSpeed(-100, 100);
         s:setLinearDamping(0.11, 0.11);
         s:setColors(
-          255, 255, 255, 255, 
+          255, 255, 255, 180, 
           255, 255, 255, 0,
           255, 255, 255, 125,
-          255, 255, 255, 0) -- Fade to transparency.
+          255, 255, 255, 0)
           
-        
         s:emit(150);
 
         gem.shards = s;
@@ -351,11 +362,65 @@ function Grid:updateEffects(state)
   end);
 end
 
+function Grid:getPercentFinished()
+
+  local prevLevel = LEVELS[self.levelNumber - 1];
+  local base = 0;
+  
+  if (prevLevel ~= nil) then
+      base = prevLevel[4];
+  end
+  
+  return (State.score - base) / (LEVELS[self.levelNumber][4] - base);
+  
+end
+
+function Grid:drawProgressBar(state)
+    
+    local dangerThresh = 0.55;
+    local dangerFlash = math.max((self.danger - dangerThresh) * 2.0, 0.0); 
+    dangerFlash = math.abs(0.5 * dangerFlash * math.cos(State.clock * 6.0));
+
+    self.dangerFlash = dangerFlash;
+
+    local gfx = state.gfx;
+    local clr = love.graphics.setColor;
+    local w = 0.25;
+    local o = 0.5;
+
+    love.graphics.setLineWidth(state.unit);
+    
+    clr(0.1, 0.1, 0.1, 1);
+
+    gfx.rect("fill", 
+        gfx.tileOffsetX(o), gfx.tileOffsetY(2), 
+        gfx.tileSize(w), gfx.tileSize(self.config.maxRows - 1)
+    );
+    
+    clr(1, 1, 1, 0.95);
+
+    gfx.rect("fill", 
+        gfx.tileOffsetX(o), gfx.tileOffsetY(2), 
+        gfx.tileSize(w), gfx.tileSize(self.config.maxRows - 1) * math.min(1.0, self:getPercentFinished())
+    );
+    
+    love.graphics.setColor(0.5 + dangerFlash, 0.5 - dangerFlash * 0.5, 0.5 - dangerFlash, 0.5 + dangerFlash);
+    
+    gfx.rect("line", 
+        gfx.tileOffsetX(o), gfx.tileOffsetY(2), 
+        gfx.tileSize(w), gfx.tileSize(self.config.maxRows - 1)
+    );
+
+end
+
+
 function Grid:draw(state)
 
         
     local gfx = state.gfx;
     local clr = love.graphics.setColor;
+    
+    self:drawProgressBar(state);
     
     love.graphics.setLineWidth(state.unit);
     love.graphics.setColor(0.1, 0.1, 0.1, 1.0);
@@ -417,10 +482,12 @@ function Grid:draw(state)
         end
     end
     
-    love.graphics.setColor(0.5, 0.5, 0.5, 0.5);
     
     love.graphics.setScissor(0, 0, State.width, State.height);
     
+    local dangerFlash = self.dangerFlash;
+    love.graphics.setColor(0.5 + dangerFlash, 0.5 - dangerFlash * 0.5, 0.5 - dangerFlash, 0.5 + dangerFlash);
+
     gfx.rect("line", 
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
@@ -448,7 +515,9 @@ function Grid:draw(state)
     ]]
     
     self.textAnim:draw();
-
+    
+    
+    
     
 end
 
@@ -502,14 +571,14 @@ function Grid:triggerBlock(br, bc)
                         blk.gem.shrink = blk.gem.shrink or (1 + dist);
                         blk.gem.willBurst = true;
                         local score = self:gemScore(blk.gem.w, blk.gem.h);
-                        State.score = State.score + score;
+                        --State.score = State.score + score;
                     else
                         dist = dist - 1;
                     end
                     
                     
                 else
-                    State.score = State.score + 10;
+                    --State.score = State.score + 10;
                     blk.shrink = 1 + dist;
                     blk.willBurst = true;
                 end
@@ -653,12 +722,12 @@ function Grid:constructGems()
     
     local stopper = 0;
   
-    while(self:constructLargestGem() and stopper < 20) do
+    while(self:constructLargestGem() and stopper < 100) do
         stopper = stopper + 1;
     end;
     
-    if (stopper > 20) then
-        print ("sadness")
+    if (stopper > 100) then
+        print ("Gem Overflow")
     end
     
     --self:constructLargestGem();
@@ -1093,6 +1162,7 @@ end
 function love.load()
     local w, h = love.graphics.getDimensions();
     resize(w,h);
+    
     love.graphics.setBackgroundColor( 0.05, 0.05, 0.05 )
 
     Assets.sounds = {
@@ -1158,9 +1228,9 @@ function love.update(dt)
 end
 
 function drawUI(state)
-    
+
     love.graphics.setColor(1,1,1,1);
-    
+
     love.graphics.print("Score: " .. State.score .. " / " .. State.grid.config.scoreNeeded, 0, 0, 0, 1, 1);
     love.graphics.print("Level: " .. State.grid.levelNumber, 0, 15, 0, 1, 1);
     
