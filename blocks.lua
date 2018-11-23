@@ -50,16 +50,16 @@ local LEVELS = {
     {  2,        9,        0.22,         19000 }, 
     
     {  2,        10,        0.23,        24000 }, 
-    {  2,        11,        0.24,        29000 }, 
-    {  2,        5,        0.3,          34000 }, 
-    {  2,        7,       0.33,          39000 }, 
-    {  2,        8,       0.34,          44000 }, 
+    {  2,        11,        0.24,        34000 }, 
+    {  2,        5,        0.3,          39000 }, 
+    {  2,        7,       0.33,          44000 }, 
+    {  2,        8,       0.34,          49000 }, 
     
-    {  2,        10,       0.34,         49000 }, 
-    {  3,        5,       0.15,          54000 },
-    {  3,        6,       0.17,          59000 },
-    {  3,        7,       0.20,          64000 },
-    {  3,        8,       0.23,          69000 }
+    {  2,        10,       0.34,         54000 }, 
+    {  3,        5,       0.15,          59000 },
+    {  3,        6,       0.17,          64000 },
+    {  3,        7,       0.20,          70000 },
+    {  3,        8,       0.23,          80000 }
 }
 
 
@@ -132,6 +132,8 @@ State.gfx = {
             shrink = 1;
         end
         
+        shrink = easing.outBack(shrink, 0, 1, 1);
+        
 
         love.graphics.draw(Assets.images.gem,
            State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
@@ -184,19 +186,18 @@ Grid = Class:new();
 BlockType = {
     
     Blue = {
-        color = {0, 0.5, 1.0, 1.0} 
+        color = {0, 0.5, 1.0, 1.0},
+        index = 1
     },
     
     Red = {
-        color = {1, 0, 0, 1}
-    },
-    
-    Yellow = {
-        color = {1, 1, 0, 1}
+        color = {1, 0, 0, 1},
+        index = 2
     },
     
     Green = {
-        color = {0, 0.75, 0, 1}
+        color = {0, 0.75, 0, 1},
+        index = 3
     }
 
 }
@@ -238,6 +239,7 @@ function Grid:setLevel(n)
     self.yOffset = 0;
     self.offsetTime = 0;
     self.numRows = 0;
+    self.animating = 0;
 
     for r = 1, self.config.maxRows do
         self:addRow();
@@ -283,9 +285,22 @@ function Grid:updateEffects(state)
   local didPlay = false;
   local highestRow = -1;
   
+  self.animating = self.animating - state.dt * 1.5;
+  
   self:eachBlock(function(blk, r, c)
   
+    if (blk.shrink ~= nil) then
+        blk.shrink = blk.shrink - state.dt * 8.5;
+        self.animating = 1;
+        
+        if (blk.shrink < 0) then
+            blk.shrink = nil;
+            blk.willBurst = nil;
+        end
+    end
+  
     if (blk.willBurst and blk.shrink < 1.0) then
+    
         blk.willBurst = nil;
         
         State.score = State.score + 10;
@@ -298,7 +313,7 @@ function Grid:updateEffects(state)
         self.textAnim:addAnimation("+10", nil, {
             duration = 0.5,
             x = State.gfx.tileOffsetX(c + 0.2),
-            y = State.gfx.tileOffsetY(r + 0.7),
+            y = State.gfx.tileOffsetY(r + 0.7 + self.yOffset),
             size = 1
         });
     end
@@ -313,6 +328,21 @@ function Grid:updateEffects(state)
 
   didPlay = false;
   self:eachGem(function(gem)
+  
+    if (gem.shrink ~= nil) then
+                
+        self.animating = 1;
+
+        if (gem.shrink > 1) then
+            gem.shrink = gem.shrink - state.dt * 8.5;
+        elseif (gem.shrink < 0) then
+            gem.shrink = nil;
+            self.gems[gem.id] = nil;
+        else
+            --gem.shrink = gem.shrink - state.dt * 10.0 / math.min(gem.w, gem.h);
+            gem.shrink = gem.shrink - state.dt * 8.0 / math.min(gem.w, gem.h);
+        end
+    end
   
     if (gem.willBurst and gem.shrink < 1.0) then
     
@@ -329,7 +359,7 @@ function Grid:updateEffects(state)
         self.textAnim:addAnimation("+" .. gmScore, nil, {
             duration = 1.5,
             x = State.gfx.tileOffsetX(gem.c + 0.2 * gem.w),
-            y = State.gfx.tileOffsetY(gem.r + 0.7 * gem.h),
+            y = State.gfx.tileOffsetY(gem.r + self.yOffset + 0.7 * gem.h),
             size = 2
         });
         
@@ -416,7 +446,6 @@ end
 
 
 function Grid:draw(state)
-
         
     local gfx = state.gfx;
     local clr = love.graphics.setColor;
@@ -433,15 +462,15 @@ function Grid:draw(state)
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
-    
-    self.animating = false;
-    
+        
     --draw blocks
     self:eachBlock(function(blk,r , c)
         
         clr(blk.config.color);
         
         if (blk.gem) then
+            
+            --
         
         elseif (blk.status == 1) then
             
@@ -450,13 +479,7 @@ function Grid:draw(state)
         elseif (blk.shrink) then
         
             gfx.drawTile(c, r + self.yOffset, math.min(1, blk.shrink));
-            blk.shrink = blk.shrink - state.dt * 10.0;
-            self.animating = true;
             
-            if (blk.shrink < 0) then
-                blk.shrink = nil;
-                blk.willBurst = nil;
-            end
         end   
     end);
     
@@ -465,21 +488,7 @@ function Grid:draw(state)
         if (gem) then
     
             gfx.drawGem(gem, self.yOffset);
-            
-            if (gem.shrink ~= nil) then
-                
-                self.animating = true;
-
-                if (gem.shrink > 1) then
-                    gem.shrink = gem.shrink - state.dt * 10.0;
-                elseif (gem.shrink < 0) then
-                    gem.shrink = nil;
-                    self.gems[gem.id] = nil;
-                else
-                    --gem.shrink = gem.shrink - state.dt * 10.0 / math.min(gem.w, gem.h);
-                    gem.shrink = gem.shrink - state.dt * 10.0 / math.min(gem.w, gem.h);
-                end
-            end
+          
         end
     end
     
@@ -517,9 +526,6 @@ function Grid:draw(state)
     
     self.textAnim:draw();
     
-    
-    
-    
 end
 
 function Grid:sampleBlockConfigs()
@@ -542,7 +548,14 @@ function Grid:addRow()
     end
 end
 
+function Grid:serialize(dataOut)
+    
+    dataOut.numRows = self.numRows;
+    dataOut.numCols = self.numCols;
+    dataOut.yOffset = self.yOffset;
+    
 
+end
 
 function Grid:triggerBlock(br, bc)
     --Assets.sounds.bomb:play();
@@ -550,7 +563,10 @@ function Grid:triggerBlock(br, bc)
     local config = self.blocks[br][bc].config;
     local toCheck = Queue:new{};
     
-    self.animating = true;
+    self.animating = 1;
+    local clearAll = false;
+    
+    local tmpScore = State.score;
     
     toCheck:pushright({br, bc, 0});
     
@@ -562,7 +578,7 @@ function Grid:triggerBlock(br, bc)
         
         if (self.blocks[r] and self.blocks[r][c]) then
             blk = self.blocks[r][c];
-            if (blk.status == 1 and blk.config == config) then
+            if (blk.status == 1 and (blk.config == config or clearAll)) then
             
                 blk.status = 0;
                 
@@ -573,6 +589,7 @@ function Grid:triggerBlock(br, bc)
                         blk.gem.willBurst = true;
                         local score = self:gemScore(blk.gem.w, blk.gem.h);
                         --State.score = State.score + score;
+                        tmpScore = tmpScore + score;
                     else
                         dist = dist - 1;
                     end
@@ -580,6 +597,7 @@ function Grid:triggerBlock(br, bc)
                     
                 else
                     --State.score = State.score + 10;
+                    tmpScore = tmpScore + 10;
                     blk.shrink = 1 + dist;
                     blk.willBurst = true;
                 end
@@ -589,7 +607,11 @@ function Grid:triggerBlock(br, bc)
                 toCheck:pushright{r, c+1, dist+1};
                 toCheck:pushright{r, c-1, dist+1};
             
-            end        
+            end
+
+            if (tmpScore > LEVELS[self.levelNumber][4]) then
+                clearAll = true;
+            end
         end
     
     end
@@ -601,7 +623,7 @@ function Grid:gemScore(w, h)
         return 0;
     end
     
-    return math.min(w,h) * 100 + math.max(w,h) * math.max(w,h);
+    return math.min(w,h) * 100 + math.max(w,h) * 10;
     
 end
 
@@ -960,7 +982,6 @@ function Grid:update(state)
     
     if (self:checkLose()) then
     
-    
     else
         self.offsetTime = self.offsetTime + state.dt * self.config.scrollSpeed;
         self.yOffset = EASING(self.offsetTime);
@@ -1213,7 +1234,19 @@ function love.load()
       gem =  love.graphics.newImage("images/gem.png"),
       sheen =  love.graphics.newImage("images/sheen.png"),
       shard =  love.graphics.newImage("images/shard.png"),
+      bg = love.graphics.newImage("images/bg.png")
     }
+    
+    Assets.fonts = {
+        
+        pixel = love.graphics.newImageFont("images/imagefont.png",
+                " abcdefghijklmnopqrstuvwxyz" ..
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0" ..
+                "123456789.,!?-+/():;%&`'*#=[]\"")
+    
+    }
+    
+    love.graphics.setFont(Assets.fonts.pixel);
     
     State.score = 0;
     State.clock = 0;
@@ -1247,7 +1280,7 @@ function love.update(dt)
         State.grid:pause();
         State.launcher:pause();
         
-        if (not State.grid.animating) then
+        if (not State.grid.animating or State.grid.animating <= 0) then
             State.grid.paused = false;
             State.launcher.paused = false;
             goNextLevel();
@@ -1260,15 +1293,19 @@ end
 function drawUI(state)
 
     love.graphics.setColor(1,1,1,1);
-
-    love.graphics.print("Score: " .. State.score .. " / " .. State.grid.config.scoreNeeded, 0, 0, 0, 1, 1);
-    love.graphics.print("Level: " .. State.grid.levelNumber, 0, 15, 0, 1, 1);
+    
+    local fsize = State.gfx.pts(0.4);
+    
+    love.graphics.print("Level: " .. State.grid.levelNumber, 0, 0, 0, fsize, fsize);
+    love.graphics.print("Score: " .. State.score .. " / " .. State.grid.config.scoreNeeded, 0, fsize * 16, 0, fsize, fsize);
     
 end
 
 function love.draw()
   
   --love.graphics.setBlendMode("alpha")
+  love.graphics.setColor(0.4, 0.35, 0.7, 0.5);
+  love.graphics.draw(Assets.images.bg, 0, 0, 0, State.width / 1200, State.height / 900)
   
   drawUI(State);
   
