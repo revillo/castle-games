@@ -15,7 +15,7 @@ local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/mas
 
 --CONSTANTS--
 
-local VOLUME = 0.1;
+local VOLUME = 0.3;
 local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
 local POINT_SIZE = 1/200;
@@ -35,7 +35,8 @@ end
 
 --GLOBALS--
 State = {
-  paused = false;
+  paused = false,
+  keyboard = {}
 }
 Assets = {}
 Class = {}
@@ -1003,6 +1004,7 @@ function Launcher:init()
     
     
     self.indicatorDelta = vec2(0, 1);
+    self.indicatorAngle = 0;
     self.indicatorTemp = vec2(0,0);
     self.reloadTime = 0;
         
@@ -1050,7 +1052,11 @@ function Launcher:fire(x, y)
     
     local projectile = self.nextProjectile;
     
-    projectile.direction = vec2(x - self.position.x, y - self.position.y);  
+    if (x == nil) then
+        projectile.direction = vec2(self.indicatorDelta.x, self.indicatorDelta.y);
+    else
+        projectile.direction = vec2(x - self.position.x, y - self.position.y);  
+    end
     
     projectile.direction:normalize();
     projectile.direction.y = math.min(projectile.direction.y, -0.5);
@@ -1079,8 +1085,11 @@ function Launcher:eachProjectile(fn)
     
 end
 
-function Launcher:setTarget(x, y)
+math.sign = function(x) 
+    if (x == 0) then return 0 else return x / math.abs(x) end;
+end
 
+function Launcher:setTarget(x, y)
 
   local cx, cy = self.indicatorDelta.x, self.indicatorDelta.y;
   
@@ -1090,9 +1099,10 @@ function Launcher:setTarget(x, y)
   
   if (self.indicatorDelta.y > -0.3) then
     self.indicatorDelta:set(cx, cy);
-    return;
   end
-    
+  
+  self.indicatorAngle = -math.sign(self.indicatorDelta.x) * math.acos(-self.indicatorDelta.y);
+  
 end
 
 function Launcher:drawIndicator(state)
@@ -1146,6 +1156,21 @@ function Launcher:update(state)
         
     end);
 
+end
+
+
+function Launcher:rotate(angle)
+
+    angle = angle * State.dt;
+    
+    if (math.abs(self.indicatorAngle + angle) > math.acos(0.3)) then
+        return;
+    end
+    
+    self.indicatorAngle = self.indicatorAngle + angle;
+    self.indicatorDelta:set(-math.sin(self.indicatorAngle), -math.cos(self.indicatorAngle));
+    
+    
 end
 
 function resize(w, h)
@@ -1213,6 +1238,11 @@ function love.update(dt)
     State.launcher:update(State);
     State.grid:update(State);
     
+    State.launcher:rotate(
+        (State.keyboard.a or State.keyboard.left or 0) -
+        (State.keyboard.d or State.keyboard.right or 0)
+    ); 
+    
     if (State.score > State.grid.config.scoreNeeded) then
         State.grid:pause();
         State.launcher:pause();
@@ -1252,7 +1282,7 @@ function love.mousemoved( x, y )
 
   local tx, ty = State.gfx.pixToOffset(x, y);
   State.launcher:setTarget(tx - 0.5, ty - 0.5);
-  
+    
 end
 
 
@@ -1267,8 +1297,14 @@ end
 function love.keypressed(k)
     State.grid:addRow();
     
+    State.keyboard[k] = 1;
+
+    if (k == "space") then
+        State.launcher:fire();
+    end
+    
     --Debugging
-    if (k == "w") then
+    if (k == "o") then
         State.grid:nextLevel();
         State.launcher:reset();
         Assets.sounds.win:play();
@@ -1277,8 +1313,13 @@ function love.keypressed(k)
     if (k == "p") then
         State.paused = not State.paused;
     end
+    
+    
 
 end
 
 function love.keyreleased(k)
+
+    State.keyboard[k] = 0;
+
 end
