@@ -10,17 +10,35 @@ local Array = require("lib/array")
 local Queue = require("lib/queue")
 local Sound = require("lib/sound");
 local TextAnimator = require("lib/TextAnimator")
-local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/master/lib/easing.lua")
+--local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/master/lib/easing.lua")
+local easing = {};
 
+easing.inOutExpo = function(t,b,c,d)
+  if t == 0 then return b end
+  if t == d then return b + c end
+  t = t / d * 2
+  if t < 1 then
+    return c / 2 * math.pow(2, 10 * (t - 1)) + b - c * 0.0005
+  else
+    t = t - 1
+    return c / 2 * 1.0005 * (-math.pow(2, -10 * t) + 2) + b
+  end
+end
+
+easing.outBack = function(t, b, c, d, s)
+  if not s then s = 1.70158 end
+  t = t / d - 1
+  return c * (t * t * ((s + 1) * t + s) + 1) + b
+end
 
 --CONSTANTS--
 
-local VOLUME = 0.3;
+local VOLUME = 0.1;
 local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
-local POINT_SIZE = 1/200;
+local POINT_SIZE = 1/220;
 local GEM_SPEED = 23;
-local GEM_SHEEN = 0.6;
+local GEM_SHEEN = 0.5;
 
 local EASING = function(t) 
 
@@ -70,7 +88,7 @@ State.gfx = {
     end,
     
     tileSize = function(s)
-        return State.gfx.pts(s * 11)
+        return State.gfx.pts(s * 12)
     end,
     
     tileOffsetX = function(s)
@@ -94,6 +112,20 @@ State.gfx = {
         
         local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
         
+        
+        --love.graphics.setShader(Assets.shaders.gem);
+        Assets.shaders.gem:send("scale", {State.gfx.tileSize(shrink * gem.w),State.gfx.tileSize(shrink * gem.h)});
+        Assets.shaders.gem:send("dimensions", {gem.w,gem.h});
+
+        love.graphics.draw(Assets.meshes.quad, 
+           State.gfx.tileOffsetX(ox), 
+           State.gfx.tileOffsetY(oy)
+        );
+        
+        --love.graphics.setShader();
+        
+        --[[
+        
         love.graphics.draw(Assets.images.gem,
            State.gfx.tileOffsetX(ox), 
            State.gfx.tileOffsetY(oy),
@@ -101,28 +133,40 @@ State.gfx = {
            State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
         
         love.graphics.setColor(1,1,1,GEM_SHEEN);
-
-          
+        ]]
+          --[[
         love.graphics.draw(Assets.images.sheen,
            State.gfx.tileOffsetX(ox), 
            State.gfx.tileOffsetY(oy),
            0,
            State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
-           
+          ]] 
     end,
     
     drawIndicator = function(x, y, shrink)
       
           local clr = shrink;
           love.graphics.setColor(clr,clr,clr * 0.9,1);
-        
+        --[[
          love.graphics.circle(
            "fill",
            State.gfx.tileOffsetX(x + 0.5), 
            State.gfx.tileOffsetY(y + 0.5),
            State.gfx.tileSize(0.1 * shrink),
            32
+         );]]
+         
+         local s = 0.1 * shrink;
+         
+         love.graphics.rectangle(
+           "fill",
+           State.gfx.tileOffsetX(x + 0.5 - s * 0.5), 
+           State.gfx.tileOffsetY(y + 0.5 - s * 0.5),
+           State.gfx.tileSize(s),
+           State.gfx.tileSize(s)
          );
+         
+         
     
     end,
     
@@ -133,14 +177,26 @@ State.gfx = {
         end
         
         shrink = easing.outBack(shrink, 0, 1, 1);
-        
-
+         
+        --[[ 
         love.graphics.draw(Assets.images.gem,
            State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
            State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
            0,
            State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
+        ]]
         
+        
+        --love.graphics.setShader(Assets.shaders.gem);
+        Assets.shaders.gem:send("scale", {State.gfx.tileSize(shrink),State.gfx.tileSize(shrink)});
+        Assets.shaders.gem:send("dimensions", {1,1});
+       
+        love.graphics.draw(Assets.meshes.quad, 
+           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
+           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5))
+        );
+        
+        --love.graphics.setShader();
         
 
         if (isBomb) then        
@@ -151,12 +207,13 @@ State.gfx = {
         
         love.graphics.setColor(1,1,1,GEM_SHEEN);
 
+        --[[
         love.graphics.draw(Assets.images.sheen,
            State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
            State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
            0,
            State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
-           
+           ]]
     end,
     
     pixToOffset = function(x, y)
@@ -382,7 +439,7 @@ function Grid:updateEffects(state)
           
         s:emit(150);
 
-        gem.shards = s;
+        --gem.shards = s;
         
     end
     
@@ -462,6 +519,9 @@ function Grid:draw(state)
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
+    
+    love.graphics.setShader(Assets.shaders.gem);
+
         
     --draw blocks
     self:eachBlock(function(blk,r , c)
@@ -491,6 +551,9 @@ function Grid:draw(state)
           
         end
     end
+    
+    love.graphics.setShader();
+
     
     
     love.graphics.setScissor(0, 0, State.width, State.height);
@@ -1034,6 +1097,7 @@ function Launcher:init()
 end
 
 function Launcher:reset()
+    self.bombTracker = 1;
 
     self.projectiles = {};
     self.position = vec2(self.grid.numCols / 2 + 0.5, self.grid.config.maxRows);
@@ -1051,8 +1115,16 @@ function Launcher:createProjectile()
         position = vec2(self.position.x, self.position.y + 1.5)
     });
     
-    if (math.random() < self.grid.config.bombChance) then
+    self.bombTracker = self.bombTracker + 1;
+    local chance = (1.0 - self.grid.config.bombChance) * 50.0 * math.random();
+    
+    --if ((self.bombTracker/10.0) * math.random() < self.grid.config.bombChance * 10.0) then
+    if (self.bombTracker > chance) then
+        
+        
+    
         projectile.isBomb = true;
+        self.bombTracker = 1;
     else
         projectile.config = self.grid:sampleBlockConfigs();
     end
@@ -1152,10 +1224,13 @@ end
 
 function Launcher:draw(state)
     
+    love.graphics.setShader(Assets.shaders.gem);
     self:eachProjectile(function(proj) proj:draw(state) end);
-    
+
     self.nextProjectile:draw(state);
     self.projectileOnDeck:draw(state);
+        love.graphics.setShader();
+
     self:drawIndicator(state);
 end
 
@@ -1246,6 +1321,14 @@ function love.load()
     
     }
     
+    Assets.shaders = {};
+    Assets.meshes = {};
+    
+    local shaders = require("shaders/gem_shaders");
+    
+    Assets.shaders.gem = shaders.gemShader(love);
+    Assets.meshes.quad = shaders.quadMesh(love);
+    
     love.graphics.setFont(Assets.fonts.pixel);
     
     State.score = 0;
@@ -1261,10 +1344,15 @@ function goNextLevel()
     Assets.sounds.win:play();
 end
 
+local cnt = 0;
+
 function love.update(dt)
     if (State.paused) then
       return
     end
+    
+    cnt = cnt + 1;
+    --if (cnt % 50 == 0) then print(dt) end
 
     State.dt = dt;
     State.clock = State.clock + dt;
@@ -1303,6 +1391,8 @@ end
 
 function love.draw()
   
+  Assets.shaders.gem:send("time", State.clock);
+  
   --love.graphics.setBlendMode("alpha")
   love.graphics.setColor(0.4, 0.35, 0.7, 0.5);
   love.graphics.draw(Assets.images.bg, 0, 0, 0, State.width / 1200, State.height / 900)
@@ -1311,6 +1401,7 @@ function love.draw()
   
   
   State.grid:draw(State);
+  
   State.launcher:draw(State);
   
 end
