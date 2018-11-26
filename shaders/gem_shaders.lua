@@ -92,47 +92,85 @@ float snoise(vec3 p) {
 
     extern float time;
     extern vec2 dimensions;
+    extern float facets;
     
     float length0(vec2 p) {
         return max(abs(p.x), abs(p.y));
     }
     
-    vec3 pyr(vec2 uv) {
+    float signPow(float x, float e) {
         
-        vec2 cuv = (uv - vec2(0.5)) * 1.3;
-        //cuv *= dimensions;
+        return pow(abs(x), e) * sign(x);
+    
+    }
+    
+    vec2 squash(vec2 uv, float amt) {
+    
+        vec2 rvec = (uv - vec2(0.5)) * 2.0;
+        
+        rvec.x = signPow(rvec.x, amt);
+        rvec.y = signPow(rvec.y, amt);
+        
+        return rvec * 0.5 + vec2(0.5, 0.5);
+        
+    }
+    
+    vec3 gem(vec2 uv, Image texture) {
+        
+        uv = squash(uv, 2.0);
+        
+        vec2 center = vec2(0.5);// + dimensions - vec2(2.0)
+        vec2 rvec = (uv - center);
 
-        //float height = min(0.5, mix(1.0, 0.0, length0(cuv)));
+        if (dimensions.x > 1.5) {
+            //center = vec2(1.0) / dimensions;
+            center = vec2(1.0);
+            vec2 suv = dimensions * uv;
+            
+            if (suv.x > 1.0) {
+                center.x += min(suv.x - 1.0, dimensions.x - 2.0);
+            }
+            
+            if (suv.y > 1.0) {
+                center.y += min(suv.y - 1.0, dimensions.y - 2.0);
+            }
+            
+            rvec = suv - center;
+            
+        }
         
+        float theta = atan(rvec.y, rvec.x) / 3.14159 + 0.5;
+        
+        theta = ((floor(theta * facets + 0.5) / facets) - 0.5) * 3.14159;
        
-        vec2 suv = uv * dimensions;
-      
-        float border = 1.0 / 6.0;
         
-        float height = min(suv.x / border, (dimensions.x - suv.x) / border );
-        height = min(height, 
-                       min(suv.y / border, (dimensions.y - suv.y) / border )
-                    );
-                    
-                    
-        float coneHeight = mix(2.0, 0.0, length(cuv));
+        vec2 ref = vec2(cos(theta), sin(theta));
         
-        //height = mix(height, coneHeight, 0.2);
-
-        height = min(height, 1.0);
+        float proj = dot(rvec, ref);
         
-       return vec3(uv * dimensions, height);
+        if (dimensions.x > 1.5) {
+            proj *= 1.0;
+        } else {
+            proj *= 2.0;
+        }
         
+        
+        
+        
+        float height = 1.0 - proj;
+                
+        return vec3(uv * dimensions, min(0.6, height));
     }
     
     vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords ){
       
-        vec2 uv = floor(texture_coords * dimensions * 24.0) / (dimensions * 24.0);
+        //vec2 uv = floor(texture_coords * dimensions * 24.0) / (dimensions * 24.0);
+        vec2 uv = texture_coords;
       
-        vec3 pos = pyr(uv);
+        vec3 pos = gem(uv, texture);
         
-        vec3 nx = pyr(uv + vec2(0.01, 0.0));
-        vec3 ny = pyr(uv + vec2(0.0, 0.01));
+        vec3 nx = gem(uv + vec2(0.01, 0.0), texture);
+        vec3 ny = gem(uv + vec2(0.0, 0.01), texture);
         
         vec3 vx = normalize(nx - pos);
         vec3 vy = normalize(ny - pos);
@@ -147,13 +185,28 @@ float snoise(vec3 p) {
         
         vec2 rad = uv - vec2(0.5);
        
-       if(height < -0.9 && time > 0.0) {discard; return vec4(0.0, 0.0, 0.0, 0.0);}
+        if(height < 0.0 && time > 0.0) {
+            return vec4(0.0, 0.0, 0.0, 0.0);
+        }
 
        
-       float diff = dot(normal, normalize(vec3(-0.2, -0.5, 0.5))) * 0.5 + 0.5;
+       float diff = dot(normal, normalize(vec3(-0.25, -0.5, 0.5))) * 0.3 + 0.7;
        float spec = max(0.0, pow(diff, 10.0)) * 0.3;
+
+   
+       vec3 fclr = vec3(diff) * color.rgb + vec3(spec);
+       //fclr = floor(fclr * 16.0) / 16.0;
        
-        return vec4(vec3(diff) * color.rgb + vec3(liq) + vec3(spec), 1.0);
+       //gradient
+       /*
+       if (dimensions.x > 1.5) {
+           vec2 rvec = uv - vec2(0.5);
+           float grad = dot(rvec, vec2(-0.25, -0.5)) * 0.5 + 0.0;
+           fclr += vec3(grad);
+       }
+       */
+       
+        return vec4(fclr, 1.0);
     }
     
   ]], [[

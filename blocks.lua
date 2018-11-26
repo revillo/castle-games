@@ -107,16 +107,14 @@ State.gfx = {
         if (shrink == nil or shrink > 1) then
             shrink = 1;
         end
-        
-        
-        
+
         local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
-        
-        
+   
         --love.graphics.setShader(Assets.shaders.gem);
         Assets.shaders.gem:send("scale", {State.gfx.tileSize(shrink * gem.w),State.gfx.tileSize(shrink * gem.h)});
         Assets.shaders.gem:send("dimensions", {gem.w,gem.h});
-
+        Assets.shaders.gem:send("facets", 4);
+        
         love.graphics.draw(Assets.meshes.quad, 
            State.gfx.tileOffsetX(ox), 
            State.gfx.tileOffsetY(oy)
@@ -170,14 +168,19 @@ State.gfx = {
     
     end,
     
-    drawTile = function(x, y, shrink, isBomb)
+    drawTile = function(x, y, block)
+        
+        local shrink = block.shrink;
         
         if (shrink == nil) then
+            shrink = 1;
+        elseif (shrink > 1.0) then
             shrink = 1;
         end
         
         shrink = easing.outBack(shrink, 0, 1, 1);
-         
+        love.graphics.setColor(block.config.color);
+ 
         --[[ 
         love.graphics.draw(Assets.images.gem,
            State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
@@ -186,28 +189,25 @@ State.gfx = {
            State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
         ]]
         
-        
-        --love.graphics.setShader(Assets.shaders.gem);
         Assets.shaders.gem:send("scale", {State.gfx.tileSize(shrink),State.gfx.tileSize(shrink)});
         Assets.shaders.gem:send("dimensions", {1,1});
+        Assets.shaders.gem:send("facets", block.config.facets);
        
         love.graphics.draw(Assets.meshes.quad, 
            State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
            State.gfx.tileOffsetY(y + ((1-shrink) * 0.5))
         );
-        
-        --love.graphics.setShader();
-        
+                
 
-        if (isBomb) then        
+        if (block.isBomb) then        
         
           --todo
         
         end
         
+        --[[
         love.graphics.setColor(1,1,1,GEM_SHEEN);
 
-        --[[
         love.graphics.draw(Assets.images.sheen,
            State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
            State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
@@ -243,18 +243,22 @@ Grid = Class:new();
 BlockType = {
     
     Blue = {
-        color = {0, 0.5, 1.0, 1.0},
-        index = 1
+        color = {0.0, 0.3, 0.95, 1.0},
+        --color = {0, 0.5, 1.0, 1.0},
+        index = 1,
+        facets = 4
     },
     
     Red = {
-        color = {1, 0, 0, 1},
-        index = 2
+        color = {0.95, 0.1, 0.1, 1},
+        --color = {1, 0, 0, 1},
+        index = 2,
+        facets = 4
     },
     
     Green = {
         color = {0, 0.75, 0, 1},
-        index = 3
+        index = 4
     }
 
 }
@@ -439,7 +443,7 @@ function Grid:updateEffects(state)
           
         s:emit(150);
 
-        --gem.shards = s;
+        gem.shards = s;
         
     end
     
@@ -534,11 +538,11 @@ function Grid:draw(state)
         
         elseif (blk.status == 1) then
             
-            gfx.drawTile(c, r + self.yOffset);
+            gfx.drawTile(c, r + self.yOffset, blk);
                         
         elseif (blk.shrink) then
         
-            gfx.drawTile(c, r + self.yOffset, math.min(1, blk.shrink));
+            gfx.drawTile(c, r + self.yOffset, blk);
             
         end   
     end);
@@ -846,7 +850,7 @@ function Grid:insertProjectile(proj)
     
     end end
     
-    if (br >= self.numRows) then
+    if (br >= self.numRows or pr >= self.numRows) then
         
         self.didLose = true;
     
@@ -960,10 +964,15 @@ end
 function Grid:dropOrphans()
     
     local toCheck = Array:new{};
+    local maxShrink = -1;
     
     self:eachBlock(function(block)
         block.checked = false;
         block.canBeFilled = false;
+        
+        if (block.shrink and block.shrink > maxShrink) then
+            maxShrink = block.shrink;
+        end
     end);
     
     for i = 1, self.numCols do
@@ -995,9 +1004,14 @@ function Grid:dropOrphans()
     
     self:eachBlock(function(block)
         if (not block.checked and block.status == 1) then
+          
             block.status = 0;
-            --todo
-            block.shrink = 2;
+            if (block.gem) then
+                block.gem.shrink = maxShrink;
+                block.shrink = nil;
+            else
+                block.shrink = maxShrink + 1;
+            end
         end
     end);
     
@@ -1077,7 +1091,7 @@ function Projectile:draw(state)
         love.graphics.setColor(self.config.color);
     end
     
-    gfx.drawTile(self.position.x, self.position.y, nil, self.isBomb);
+    gfx.drawTile(self.position.x, self.position.y, self);
 
 end
 
@@ -1121,7 +1135,10 @@ function Launcher:createProjectile()
     --if ((self.bombTracker/10.0) * math.random() < self.grid.config.bombChance * 10.0) then
     if (self.bombTracker > chance) then
         
-        
+        projectile.config = {
+            color = {1,1,1,1},
+            facets = 3
+        };
     
         projectile.isBomb = true;
         self.bombTracker = 1;
@@ -1309,7 +1326,8 @@ function love.load()
       gem =  love.graphics.newImage("images/gem.png"),
       sheen =  love.graphics.newImage("images/sheen.png"),
       shard =  love.graphics.newImage("images/shard.png"),
-      bg = love.graphics.newImage("images/bg.png")
+      bg = love.graphics.newImage("images/bg.png"),
+      --diamond = love.graphics.newImage("images/diamond.png")
     }
     
     Assets.fonts = {
@@ -1328,6 +1346,7 @@ function love.load()
     
     Assets.shaders.gem = shaders.gemShader(love);
     Assets.meshes.quad = shaders.quadMesh(love);
+    --Assets.meshes.quad:setTexture(Assets.images.diamond);
     
     love.graphics.setFont(Assets.fonts.pixel);
     
@@ -1394,8 +1413,8 @@ function love.draw()
   Assets.shaders.gem:send("time", State.clock);
   
   --love.graphics.setBlendMode("alpha")
-  love.graphics.setColor(0.4, 0.35, 0.7, 0.5);
-  love.graphics.draw(Assets.images.bg, 0, 0, 0, State.width / 1200, State.height / 900)
+  --love.graphics.setColor(0.8, 0.8, 0.8, 0.5);
+  --love.graphics.draw(Assets.images.bg, 0, 0, 0, State.width / 1200, State.height / 900)
   
   drawUI(State);
   
@@ -1423,7 +1442,6 @@ function love.mousepressed( x, y, button, istouch, presses )
 end
 
 function love.keypressed(k)
-    State.grid:addRow();
     
     State.keyboard[k] = 1;
 
@@ -1442,6 +1460,12 @@ function love.keypressed(k)
         State.paused = not State.paused;
     end
     
+    if (k == "g") then
+        print(State.grid.numRows);
+        State.grid:eachBlockInRow(State.grid.numRows, function(block)
+            print(block.status);
+        end);
+    end
     
 
 end
