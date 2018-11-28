@@ -6,12 +6,18 @@ function vec2(x, y)
     return Vec2:new{x=x or 0, y=y or 0};
 end
 
+local randFloat = function(lo, hi) 
+    return lo + (math.random() * (hi-lo));
+end
+
 local Array = require("lib/array")
 local Queue = require("lib/queue")
-local Sound = require("lib/sound");
+local Sound = require("lib/sound")
 local TextAnimator = require("lib/TextAnimator")
 --local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/master/lib/easing.lua")
 local easing = {};
+local cs = require("https://raw.githubusercontent.com/expo/share.lua/master/cs.lua");
+
 
 easing.inOutExpo = function(t,b,c,d)
   if t == 0 then return b end
@@ -61,7 +67,7 @@ Class = {}
 
 local LEVELS = {
     --colors | columns | scrollSpeed | scoreNeeded
-    {  2,        5,        0.15,          2000 },
+    {  2,        7,        0.15,          100000 },
     {  2,        6,        0.17,          4500 },
     {  2,        7,        0.18,          9000 },
     {  2,        8,        0.19,         14000 },
@@ -81,147 +87,117 @@ local LEVELS = {
 }
 
 
-State.gfx = {
+function generateGfxContext(scale, dx, dy) 
+    
+    local pts = function(s)
+        return State.unit * (s) * scale;
+    end
+    
+    local tileSize = function(s)
+        return pts(s * 12)
+    end
+    
+    local tileOffsetX = function(s)
+        return tileSize(s) + pts(dx);
+    end
+        
+    local tileOffsetY = function(s)
+        return tileSize(s) + pts(dy);
+    end
+    
+    
+    return {
+        pts = pts,
+        tileSize = tileSize,
+        
+        tileOffsetX = tileOffsetX,
+        tileOffsetY = tileOffsetY,
+        
+        
+        drawGem = function(gem, yOffset)
+            
+            love.graphics.setColor(gem.config.color);
 
-    pts = function(s)
-        return State.unit * (s);
-    end,
-    
-    tileSize = function(s)
-        return State.gfx.pts(s * 12)
-    end,
-    
-    tileOffsetX = function(s)
-        return State.gfx.tileSize(s) + State.gfx.pts(30);
-    end,
-    
-    tileOffsetY = function(s)
-        return State.gfx.tileSize(s) + State.gfx.pts(-5);
-    end,
-    
-    drawGem = function(gem, yOffset)
-        
-        love.graphics.setColor(gem.config.color);
+            local shrink = gem.shrink;
+            if (shrink == nil or shrink > 1) then
+                shrink = 1;
+            end
 
-        local shrink = gem.shrink;
-        if (shrink == nil or shrink > 1) then
-            shrink = 1;
-        end
-
-        local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
-   
-        --love.graphics.setShader(Assets.shaders.gem);
-        Assets.shaders.gem:send("scale", {State.gfx.tileSize(shrink * gem.w),State.gfx.tileSize(shrink * gem.h)});
-        Assets.shaders.gem:send("dimensions", {gem.w,gem.h});
-        Assets.shaders.gem:send("facets", 4);
-        
-        love.graphics.draw(Assets.meshes.quad, 
-           State.gfx.tileOffsetX(ox), 
-           State.gfx.tileOffsetY(oy)
-        );
-        
-        --love.graphics.setShader();
-        
-        --[[
-        
-        love.graphics.draw(Assets.images.gem,
-           State.gfx.tileOffsetX(ox), 
-           State.gfx.tileOffsetY(oy),
-           0,
-           State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
-        
-        love.graphics.setColor(1,1,1,GEM_SHEEN);
-        ]]
-          --[[
-        love.graphics.draw(Assets.images.sheen,
-           State.gfx.tileOffsetX(ox), 
-           State.gfx.tileOffsetY(oy),
-           0,
-           State.gfx.tileSize(gem.w * shrink)/PNG_SIZE, State.gfx.tileSize(gem.h * shrink)/PNG_SIZE);
-          ]] 
-    end,
-    
-    drawIndicator = function(x, y, shrink)
-      
-          local clr = shrink;
-          love.graphics.setColor(clr,clr,clr * 0.9,1);
-        --[[
-         love.graphics.circle(
-           "fill",
-           State.gfx.tileOffsetX(x + 0.5), 
-           State.gfx.tileOffsetY(y + 0.5),
-           State.gfx.tileSize(0.1 * shrink),
-           32
-         );]]
-         
-         local s = 0.1 * shrink;
-         
-         love.graphics.rectangle(
-           "fill",
-           State.gfx.tileOffsetX(x + 0.5 - s * 0.5), 
-           State.gfx.tileOffsetY(y + 0.5 - s * 0.5),
-           State.gfx.tileSize(s),
-           State.gfx.tileSize(s)
-         );
-         
-         
-    
-    end,
-    
-    drawTile = function(x, y, block)
-        
-        local shrink = block.shrink;
-        
-        if (shrink == nil) then
-            shrink = 1;
-        elseif (shrink > 1.0) then
-            shrink = 1;
-        end
-        
-        shrink = easing.outBack(shrink, 0, 1, 1);
-        love.graphics.setColor(block.config.color);
- 
-        --[[ 
-        love.graphics.draw(Assets.images.gem,
-           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
-           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
-           0,
-           State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
-        ]]
-        
-        Assets.shaders.gem:send("scale", {State.gfx.tileSize(shrink),State.gfx.tileSize(shrink)});
-        Assets.shaders.gem:send("dimensions", {1,1});
-        Assets.shaders.gem:send("facets", block.config.facets);
+            local ox, oy = gem.c + (1-shrink) * 0.5 * gem.w, gem.r + (1-shrink) * 0.5 * gem.h + yOffset
        
-        love.graphics.draw(Assets.meshes.quad, 
-           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
-           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5))
-        );
-                
+            Assets.shaders.gem:send("scale", {tileSize(shrink * gem.w),tileSize(shrink * gem.h)});
+            Assets.shaders.gem:send("dimensions", {gem.w,gem.h});
+            Assets.shaders.gem:send("facets", 4);
+            
+            love.graphics.draw(Assets.meshes.quad, 
+               tileOffsetX(ox), 
+               tileOffsetY(oy)
+            );
+            
+        end,
+        
+        drawIndicator = function(x, y, shrink)
+          
+              local clr = shrink;
+              love.graphics.setColor(clr,clr,clr * 0.9,1);
+             
+             local s = 0.1 * shrink;
+             
+             love.graphics.rectangle(
+               "fill",
+               tileOffsetX(x + 0.5 - s * 0.5), 
+               tileOffsetY(y + 0.5 - s * 0.5),
+               tileSize(s),
+               tileSize(s)
+             );
+             
+             
+        
+        end,
+        
+        drawTile = function(x, y, block)
+            
+            local shrink = block.shrink;
+            
+            if (shrink == nil) then
+                shrink = 1;
+            elseif (shrink > 1.0) then
+                shrink = 1;
+            end
+            
+            shrink = easing.outBack(shrink, 0, 1, 1);
+            love.graphics.setColor(block.config.color);
+     
+            Assets.shaders.gem:send("scale", {tileSize(shrink),tileSize(shrink)});
+            Assets.shaders.gem:send("dimensions", {1,1});
+            Assets.shaders.gem:send("facets", block.config.facets);
+           
+            love.graphics.draw(Assets.meshes.quad, 
+               tileOffsetX(x + ((1-shrink) * 0.5)), 
+               tileOffsetY(y + ((1-shrink) * 0.5))
+            );
+                    
 
-        if (block.isBomb) then        
+            if (block.isBomb) then        
+            
+              --todo
+            
+            end
+            
+        end,
         
-          --todo
+        pixToOffset = function(x, y)
+            return (x - pts(dx)) / tileSize(1), (y - pts(dy)) / tileSize(1);
+        end,
         
-        end
-        
-        --[[
-        love.graphics.setColor(1,1,1,GEM_SHEEN);
+        rect = love.graphics.rectangle
+    }
 
-        love.graphics.draw(Assets.images.sheen,
-           State.gfx.tileOffsetX(x + ((1-shrink) * 0.5)), 
-           State.gfx.tileOffsetY(y + ((1-shrink) * 0.5)),
-           0,
-           State.gfx.tileSize(1 * shrink)/PNG_SIZE, State.gfx.tileSize(1 * shrink)/PNG_SIZE);
-           ]]
-    end,
-    
-    pixToOffset = function(x, y)
-        return (x - State.gfx.pts(30)) / State.gfx.tileSize(1), (y - State.gfx.pts(-5)) / State.gfx.tileSize(1);
-    end,
-    
-    rect = love.graphics.rectangle
-}
+end
+
+
+State.gfx = generateGfxContext(1, 20, -5);
+State.gfxRemote = generateGfxContext(1, 140, -5);
 
 --CLASSES--
 
@@ -258,10 +234,20 @@ BlockType = {
     
     Green = {
         color = {0, 0.75, 0, 1},
-        index = 4
+        index = 4,
+        facets = 4
+    },
+    
+    
+    Yellow = {
+        color = {1, 1, 0.2, 1},
+        index = 4,
+        facets = 4
     }
 
 }
+
+SpamBlockArray = {BlockType.Green, BlockType.Yellow}
 
 function Grid:nextLevel()
     
@@ -364,7 +350,7 @@ function Grid:updateEffects(state)
     
         blk.willBurst = nil;
         
-        State.score = State.score + 10;
+        state.score = state.score + 10;
 
         if (not didPlay) then
             didPlay = true;
@@ -373,8 +359,8 @@ function Grid:updateEffects(state)
         
         self.textAnim:addAnimation("+10", nil, {
             duration = 0.5,
-            x = State.gfx.tileOffsetX(c + 0.2),
-            y = State.gfx.tileOffsetY(r + 0.7 + self.yOffset),
+            x = state.gfx.tileOffsetX(c + 0.2),
+            y = state.gfx.tileOffsetY(r + 0.7 + self.yOffset),
             size = 1
         });
     end
@@ -414,13 +400,13 @@ function Grid:updateEffects(state)
         
         local gmScore = self:gemScore(gem.w, gem.h);
     
-        State.score = State.score + gmScore;
+        state.score = state.score + gmScore;
     
         gem.willBurst = nil;
         self.textAnim:addAnimation("+" .. gmScore, nil, {
             duration = 1.5,
-            x = State.gfx.tileOffsetX(gem.c + 0.2 * gem.w),
-            y = State.gfx.tileOffsetY(gem.r + self.yOffset + 0.7 * gem.h),
+            x = state.gfx.tileOffsetX(gem.c + 0.2 * gem.w),
+            y = state.gfx.tileOffsetY(gem.r + self.yOffset + 0.7 * gem.h),
             size = 2
         });
         
@@ -428,7 +414,7 @@ function Grid:updateEffects(state)
         s:setParticleLifetime(0.5, 1.0) 
         s:setEmissionRate(0)
         s:setSizes(0.05, 0.03)
-        s:setEmissionArea("uniform", State.gfx.tileSize(gem.w * 0.4), State.gfx.tileSize(gem.h * 0.4), 0, false);
+        s:setEmissionArea("uniform", state.gfx.tileSize(gem.w * 0.4), state.gfx.tileSize(gem.h * 0.4), 0, false);
         s:setRotation( -3, 3 )
         s:setSpin(-4.0, 4.0);
         s:setSizeVariation(1)
@@ -443,7 +429,7 @@ function Grid:updateEffects(state)
           
         s:emit(150);
 
-        gem.shards = s;
+        --gem.shards = s;
         
     end
     
@@ -467,7 +453,7 @@ function Grid:getPercentFinished()
   
 end
 
-function Grid:drawProgressBar(state)
+function Grid:drawProgressBar(state, gfx)
     
     local dangerThresh = 0.55;
     local dangerFlash = math.max((self.danger - dangerThresh) * 2.0, 0.0); 
@@ -475,7 +461,6 @@ function Grid:drawProgressBar(state)
 
     self.dangerFlash = dangerFlash;
 
-    local gfx = state.gfx;
     local clr = love.graphics.setColor;
     local w = 0.25;
     local o = 0.5;
@@ -506,22 +491,21 @@ function Grid:drawProgressBar(state)
 end
 
 
-function Grid:draw(state)
+function Grid:draw(state, gfx)
         
-    local gfx = state.gfx;
     local clr = love.graphics.setColor;
     
-    self:drawProgressBar(state);
+    self:drawProgressBar(state, gfx);
     
     love.graphics.setLineWidth(state.unit);
     love.graphics.setColor(0.1, 0.1, 0.1, 1.0);
 
-    love.graphics.setScissor( gfx.tileOffsetX(1), gfx.tileOffsetY(2), gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1))
+    love.graphics.setScissor( gfx.tileOffsetX(1), gfx.tileOffsetY(2), gfx.tileSize(self.numCols), gfx.tileSize(self.numRows - 1))
 
     
     gfx.rect("fill", 
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
-        gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
+        gfx.tileSize(self.numCols), gfx.tileSize(self.numRows - 1)
     );
     
     love.graphics.setShader(Assets.shaders.gem);
@@ -558,8 +542,6 @@ function Grid:draw(state)
     
     love.graphics.setShader();
 
-    
-    
     love.graphics.setScissor(0, 0, State.width, State.height);
     
     local dangerFlash = self.dangerFlash;
@@ -576,22 +558,15 @@ function Grid:draw(state)
     
        if (gem.shards) then        
           love.graphics.draw(gem.shards, 
-            State.gfx.tileOffsetX(gem.c + gem.w * 0.5),
-            State.gfx.tileOffsetY(gem.r + gem.h * 0.5 + self.yOffset) 
+            gfx.tileOffsetX(gem.c + gem.w * 0.5),
+            gfx.tileOffsetY(gem.r + gem.h * 0.5 + self.yOffset) 
           );
         end  
     end);
-    love.graphics.setColor(1,1,1,1);
-
-    --[[
-    love.graphics.setColor(0.0, 0.0, 0.0, 1.0);
-    gfx.rect("fill", 
-        gfx.tileOffsetX(0.5), gfx.tileOffsetY(1), 
-        gfx.tileSize(self.numCols + 1), gfx.tileSize(1)
-    );
-    ]]
     
-    self.textAnim:draw();
+    if (self.textAnim) then
+        self.textAnim:draw();
+    end
     
 end
 
@@ -620,7 +595,18 @@ function Grid:serialize(dataOut)
     dataOut.numRows = self.numRows;
     dataOut.numCols = self.numCols;
     dataOut.yOffset = self.yOffset;
+    dataOut.blocks = self.blocks;
+    dataOut.gems = self.gems;
+
+end
+
+function Grid:deserialize(dataIn)
     
+    if (dataIn == nil) then return end
+    
+    for k,v in pairs(dataIn) do
+        self[k] = v;
+    end
 
 end
 
@@ -1049,6 +1035,12 @@ function Grid:pause()
     self.paused = true;
 end
 
+function Grid:updateRemote(state)
+    
+    self.textAnim:update(state.dt);
+
+end
+
 function Grid:update(state)
     self:updateEffects(state);
     self.textAnim:update(state.dt);
@@ -1078,7 +1070,7 @@ Projectile = Class:new();
 
 function Projectile:update(state) 
     
-    self.position:addScaled(self.direction, state.dt * GEM_SPEED);
+    --self.position:addScaled(self.direction, state.dt * GEM_SPEED);
     
 end
 
@@ -1112,7 +1104,7 @@ end
 
 function Launcher:reset()
     self.bombTracker = 1;
-
+    self.spamAmt = 0;
     self.projectiles = {};
     self.position = vec2(self.grid.numCols / 2 + 0.5, self.grid.config.maxRows);
     self.projectileUUID = 1;
@@ -1246,7 +1238,7 @@ function Launcher:draw(state)
 
     self.nextProjectile:draw(state);
     self.projectileOnDeck:draw(state);
-        love.graphics.setShader();
+    love.graphics.setShader();
 
     self:drawIndicator(state);
 end
@@ -1260,17 +1252,61 @@ function Launcher:update(state)
     self.reloadTime = self.reloadTime + state.dt / RELOAD_DURATION;
 
     self:eachProjectile(function(proj) 
+        
+        --[[
         proj:update(state)
 
         if self.grid:considerProjectile(proj) then
-            --table.remove(self.projectiles, proj.uuid)
             self.projectiles[proj.uuid] = nil;
+        end
+        ]]
+        
+        for i = 1,10 do
+        
+            proj.position:addScaled(proj.direction, state.dt * GEM_SPEED / 10.0);
+            if self.grid:considerProjectile(proj) then
+                self.projectiles[proj.uuid] = nil;
+                return;
+            end
         end
         
     end);
+    
+    if (self.spamAmt > 0.0) then
+        
+        local tmp = math.floor(self.spamAmt);
+        self.spamAmt = self.spamAmt - state.dt * 3;
+        
+        if (self.spamAmt < tmp) then
+            self:launchSpam()
+        end
+        
+    end
 
 end
 
+
+function Launcher:launchSpam()
+    
+    local proj = Projectile:new({
+        position = vec2(self.grid.numCols, self.position.y),
+        direction = vec2(-randFloat(0.1, 1), -1),
+        uuid = self.projectileUUID,
+        config = SpamBlockArray[math.random(2)]
+    });
+    
+    proj.direction:setMag(1.3);
+    self.projectiles[self.projectileUUID] = proj;
+    
+    self.projectileUUID = self.projectileUUID + 1;
+
+end
+
+function Launcher:spam(amt)
+
+    self.spamAmt = self.spamAmt + amt;
+    
+end
 
 function Launcher:rotate(angle)
 
@@ -1297,7 +1333,52 @@ function love.resize(w, h)
     resize(w,h);
 end
 
-function love.load()
+local spamState = {
+    
+    lastScore = 0
+
+}
+
+client = cs.client;
+client.enabled = true;
+client.start('localhost:22122');
+
+print("Connecting to localhost:22122..");
+
+function client.connect() -- Called on connect from server
+    print("Connected")
+end
+
+function client.disconnect() -- Called on disconnect from server
+    print("disconnected")
+end
+
+--[[
+function client.receive(msg) -- Called when server does `server.send(id, ...)` with our `id`
+    --print("Received msg")
+    for k,v in pairs(msg.room.players) do
+       -- print(k, v);
+       
+       State.remoteGrid:deserialize(v.gridState);
+       
+       local remoteScore = v.score;
+    
+        if (remoteScore - spamState.lastScore > 100) then
+            
+            local amt = math.floor((remoteScore - spamState.lastScore) / 100);
+            spamState.lastScore = remoteScore;
+            State.launcher:spam(amt);
+        
+        end
+       
+       return;
+       
+    end
+   
+end]]
+
+
+function client.load()
     local w, h = love.graphics.getDimensions();
     resize(w,h);
     
@@ -1352,9 +1433,15 @@ function love.load()
     
     State.score = 0;
     State.clock = 0;
+    
     State.grid = Grid:new();
+    State.remoteGrid = Grid:new();
+    
     State.launcher = Launcher:new{grid = State.grid};
    
+   
+    --State.client = Client:new();
+    --State.client:connect();
 end
 
 function goNextLevel()
@@ -1364,19 +1451,23 @@ function goNextLevel()
 end
 
 local cnt = 0;
+local stateshare = {};
 
-function love.update(dt)
+
+function client.update(dt)
     if (State.paused) then
       return
     end
     
-    cnt = cnt + 1;
+    --cnt = cnt + 1;
     --if (cnt % 50 == 0) then print(dt) end
 
     State.dt = dt;
     State.clock = State.clock + dt;
     State.launcher:update(State);
+    
     State.grid:update(State);
+    State.remoteGrid:updateRemote(State);
     
     State.launcher:rotate(
         (State.keyboard.a or State.keyboard.left or 0) -
@@ -1395,6 +1486,32 @@ function love.update(dt)
         
     end
     
+    
+    State.grid:serialize(stateshare);
+    
+    client.home.gridState = stateshare;
+    client.home.score = State.score; 
+    
+    --TODO MOVE--
+    if (client.share.players ~= nil) then
+    
+        local remoteState = client.share.players[client.id]
+        
+        State.remoteGrid:deserialize(remoteState.gridState);
+        
+        local remoteScore = remoteState.score or 0;
+        
+        if (remoteScore - spamState.lastScore > 200) then
+            
+            local amt = math.floor((remoteScore - spamState.lastScore) / 200);
+            spamState.lastScore = remoteScore;
+            State.launcher:spam(amt);
+        
+        elseif (remoteScore < spamState.lastScore) then
+            spamState.lastScore = remoteScore;
+        end
+    end
+    
 end
 
 function drawUI(state)
@@ -1408,6 +1525,7 @@ function drawUI(state)
     
 end
 
+
 function love.draw()
   
   Assets.shaders.gem:send("time", State.clock);
@@ -1419,7 +1537,10 @@ function love.draw()
   drawUI(State);
   
   
-  State.grid:draw(State);
+  State.grid:draw(State, State.gfx);
+  
+ 
+  State.remoteGrid:draw(State, State.gfxRemote);
   
   State.launcher:draw(State);
   
@@ -1467,6 +1588,9 @@ function love.keypressed(k)
         end);
     end
     
+    if (k == "v") then
+        State.launcher:spam(1);
+    end
 
 end
 
