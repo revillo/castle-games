@@ -158,8 +158,17 @@ float snoise(vec3 p) {
         
         
         float height = 1.0 - proj;
-                
-        return vec3(uv * dimensions, min(0.6, height));
+        
+        if (height > 0.0) {
+          height = min(0.6, height);
+          height = height / 0.6;
+          height = pow(height, 0.5);
+          //height = height * 0.6;
+        }
+        
+
+        
+        return vec3(uv * dimensions, height);
     }
     
     vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords ){
@@ -169,17 +178,20 @@ float snoise(vec3 p) {
       
         vec3 pos = gem(uv, texture);
         
-        vec3 nx = gem(uv + vec2(0.01, 0.0), texture);
-        vec3 ny = gem(uv + vec2(0.0, 0.01), texture);
+        vec3 nx = gem(uv + vec2(0.005, 0.0), texture);
+        vec3 ny = gem(uv + vec2(0.0, 0.005), texture);
         
         vec3 vx = normalize(nx - pos);
         vec3 vy = normalize(ny - pos);
         
         vec3 normal = normalize(cross(vx, vy));
-               
+        
+          /*
         float nd = (30.0 - pos.z) / normal.z;
         vec3 proj = pos + normal * nd;
-        float liq = pow(snoise(vec3(proj.xy, time * 0.4)), 5.0) * 0.0;
+        float liq = pow(snoise(vec3(proj.xy, time * 0.4)), 5.0) - 0.5;
+          */
+        
         
         float height = pos.z;
         
@@ -190,8 +202,9 @@ float snoise(vec3 p) {
         }
 
        
-       float diff = dot(normal, normalize(vec3(-0.25, -0.5, 0.5))) * 0.3 + 0.7;
-       float spec = max(0.0, pow(diff, 10.0)) * 0.3;
+       float diff = dot(normal, normalize(vec3(-0.2, -0.5, 0.5))) * 0.3 + 0.7;
+       float spec = max(0.0, pow(diff, 15.0)) * 0.7;
+       
 
    
        vec3 fclr = vec3(diff) * color.rgb + vec3(spec);

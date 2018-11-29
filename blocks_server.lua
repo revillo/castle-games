@@ -1,6 +1,7 @@
 --http://localhost:4000/blocks_server.lua
+--castle://localhost:4000/blocks_server.lua
 
-local cs = require("https://raw.githubusercontent.com/expo/share.lua/master/cs.lua")
+local cs = require("share/cs")
 local server = cs.server
 
 

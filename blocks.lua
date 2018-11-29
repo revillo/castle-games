@@ -1,7 +1,9 @@
 --http://localhost:4000/blocks.lua
-
+--castle://localhost:4000/blocks.lua
 --Scripts--
 local Vec2 = require("lib/vec2")
+
+
 function vec2(x, y) 
     return Vec2:new{x=x or 0, y=y or 0};
 end
@@ -16,7 +18,8 @@ local Sound = require("lib/sound")
 local TextAnimator = require("lib/TextAnimator")
 --local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/master/lib/easing.lua")
 local easing = {};
-local cs = require("https://raw.githubusercontent.com/expo/share.lua/master/cs.lua");
+--local cs = require("https://raw.githubusercontent.com/expo/share.lua/master/cs.lua");
+local cs = require("share/cs");
 
 
 easing.inOutExpo = function(t,b,c,d)
@@ -327,6 +330,7 @@ function Grid:init()
 
 end
 
+
 function Grid:updateEffects(state)
 
   local didPlay = false;
@@ -429,7 +433,7 @@ function Grid:updateEffects(state)
           
         s:emit(150);
 
-        --gem.shards = s;
+        --gem.__shards = s;
         
     end
     
@@ -1074,8 +1078,7 @@ function Projectile:update(state)
     
 end
 
-function Projectile:draw(state)
-    gfx = state.gfx;
+function Projectile:draw(gfx)
     
     if (self.isBomb) then
         love.graphics.setColor(1, 1, 1, 1);
@@ -1095,7 +1098,6 @@ function Launcher:init()
     
     self.indicatorDelta = vec2(0, 1);
     self.indicatorAngle = 0;
-    self.indicatorTemp = vec2(0,0);
     self.reloadTime = 0;
         
     self:reset();
@@ -1106,7 +1108,7 @@ function Launcher:reset()
     self.bombTracker = 1;
     self.spamAmt = 0;
     self.projectiles = {};
-    self.position = vec2(self.grid.numCols / 2 + 0.5, self.grid.config.maxRows);
+    self.position = vec2(State.grid.numCols / 2 + 0.5, State.grid.config.maxRows);
     self.projectileUUID = 1;
     
     self.nextProjectile = self:createProjectile();
@@ -1118,13 +1120,13 @@ end
 function Launcher:createProjectile()
     
     local projectile = Projectile:new({
-        position = vec2(self.position.x, self.position.y + 1.5)
+        position = vec2(self.position.x, self.position.y + 1.5),
+        uuid = self.projectileUUID
     });
     
     self.bombTracker = self.bombTracker + 1;
-    local chance = (1.0 - self.grid.config.bombChance) * 50.0 * math.random();
+    local chance = (1.0 - State.grid.config.bombChance) * 50.0 * math.random();
     
-    --if ((self.bombTracker/10.0) * math.random() < self.grid.config.bombChance * 10.0) then
     if (self.bombTracker > chance) then
         
         projectile.config = {
@@ -1135,8 +1137,10 @@ function Launcher:createProjectile()
         projectile.isBomb = true;
         self.bombTracker = 1;
     else
-        projectile.config = self.grid:sampleBlockConfigs();
+        projectile.config = State.grid:sampleBlockConfigs();
     end
+    
+    self.projectileUUID = self.projectileUUID + 1;
     
     return projectile;
     
@@ -1165,11 +1169,11 @@ function Launcher:fire(x, y)
     projectile.direction:normalize();
 
     projectile.position = vec2(self.position.x, self.position.y);    
-    projectile.uuid = self.projectileUUID;
+    --projectile.uuid = self.projectileUUID;
 
     
-    self.projectiles[self.projectileUUID] = projectile;
-    self.projectileUUID = self.projectileUUID + 1;
+    self.projectiles[projectile.uuid] = projectile;
+    --self.projectileUUID = self.projectileUUID + 1;
     
     self.nextProjectile = self.projectileOnDeck;
     self.nextProjectile.position:set(self.position.x, self.position.y + 0.5);
@@ -1207,13 +1211,14 @@ function Launcher:setTarget(x, y)
   
 end
 
-function Launcher:drawIndicator(state)
+local indicatorTemp = vec2(0,0);
+function Launcher:drawIndicator(gfx)
   
   if (self.reloadTime < 1.0) then
     return;
   end
   
-  local cycleT = state.clock % 1.0 - 1.0;
+  local cycleT = State.clock % 1.0 - 1.0;
   --cycleT = 0;
   
   for i = 1, 4 do
@@ -1222,25 +1227,34 @@ function Launcher:drawIndicator(state)
     
     local increment = i;    
 
-    self.indicatorTemp:set(self.position.x, self.position.y);
-    self.indicatorTemp:addScaled(self.indicatorDelta, increment * 0.4);
+    indicatorTemp:set(self.position.x, self.position.y);
+    indicatorTemp:addScaled(self.indicatorDelta, increment * 0.4);
     
-    state.gfx.drawIndicator(self.indicatorTemp.x, self.indicatorTemp.y, (math.sin(-state.clock * 10.0 + i) * 0.1 + 0.8) * (2.0 - (i * 0.4)));
+    gfx.drawIndicator(indicatorTemp.x, indicatorTemp.y, (math.sin(-State.clock * 10.0 + i) * 0.1 + 0.8) * (2.0 - (i * 0.4)));
     
   end
 
 end
 
-function Launcher:draw(state)
+function Launcher:drawProjectile(proj, gfx)
+  
+    gfx.drawTile(proj.position.x, proj.position.y, proj);
+  
+end
+
+function Launcher:draw(gfx)
     
     love.graphics.setShader(Assets.shaders.gem);
-    self:eachProjectile(function(proj) proj:draw(state) end);
+    
+    self:eachProjectile(function(proj) 
+      self:drawProjectile(proj, gfx);
+    end);
 
-    self.nextProjectile:draw(state);
-    self.projectileOnDeck:draw(state);
+    self:drawProjectile(self.nextProjectile, gfx);
+    self:drawProjectile(self.projectileOnDeck, gfx);
     love.graphics.setShader();
 
-    self:drawIndicator(state);
+    self:drawIndicator(gfx);
 end
 
 function Launcher:pause()
@@ -1256,7 +1270,7 @@ function Launcher:update(state)
         --[[
         proj:update(state)
 
-        if self.grid:considerProjectile(proj) then
+        if State.grid:considerProjectile(proj) then
             self.projectiles[proj.uuid] = nil;
         end
         ]]
@@ -1264,7 +1278,7 @@ function Launcher:update(state)
         for i = 1,10 do
         
             proj.position:addScaled(proj.direction, state.dt * GEM_SPEED / 10.0);
-            if self.grid:considerProjectile(proj) then
+            if state.grid:considerProjectile(proj) then
                 self.projectiles[proj.uuid] = nil;
                 return;
             end
@@ -1289,7 +1303,7 @@ end
 function Launcher:launchSpam()
     
     local proj = Projectile:new({
-        position = vec2(self.grid.numCols, self.position.y),
+        position = vec2(State.grid.numCols, self.position.y),
         direction = vec2(-randFloat(0.1, 1), -1),
         uuid = self.projectileUUID,
         config = SpamBlockArray[math.random(2)]
@@ -1335,15 +1349,12 @@ end
 
 local spamState = {
     
-    lastScore = 0
+    lastScore = nil
 
 }
 
 client = cs.client;
 client.enabled = true;
-client.start('localhost:22122');
-
-print("Connecting to localhost:22122..");
 
 function client.connect() -- Called on connect from server
     print("Connected")
@@ -1377,6 +1388,15 @@ function client.receive(msg) -- Called when server does `server.send(id, ...)` w
    
 end]]
 
+function initMultiplayer()
+
+    State.remoteGrid = Grid:new();
+    
+    State.remoteLauncher = nil;
+    client.start('localhost:22122');
+
+    print("Connecting to localhost:22122..");
+end
 
 function client.load()
     local w, h = love.graphics.getDimensions();
@@ -1435,13 +1455,10 @@ function client.load()
     State.clock = 0;
     
     State.grid = Grid:new();
-    State.remoteGrid = Grid:new();
     
-    State.launcher = Launcher:new{grid = State.grid};
+    State.launcher = Launcher:new{};
    
-   
-    --State.client = Client:new();
-    --State.client:connect();
+    initMultiplayer();
 end
 
 function goNextLevel()
@@ -1453,6 +1470,64 @@ end
 local cnt = 0;
 local stateshare = {};
 
+
+TypeMap = {
+  v2 = Vec2,
+  prj = Projectile,
+  lnch = Launcher
+}
+
+for k,v in pairs(TypeMap) do
+  v.typename = k;
+end
+
+function updateMultiplayer()
+
+    State.grid:serialize(stateshare);
+    
+    client.home.gridState = stateshare;
+    client.home.score = State.score; 
+    client.home.launcher = State.launcher;
+    
+    
+    if (client.share.players ~= nil) then
+    
+        for id, v in pairs(client.share.players) do
+           if (client.id ~= id) then
+              remoteState = v
+           end
+        end
+    
+        --play yourself
+        --local remoteState = client.share.players[client.id]
+        
+        State.remoteGrid:deserialize(remoteState.gridState);
+        
+        if (remoteState.launcher) then
+          State.remoteLauncher = remoteState.launcher;
+        end
+        
+        --Spam player
+        
+        local remoteScore = remoteState.score or 0;
+        
+        if (not spamState.lastScore) then
+          spamState.lastScore = remoteScore
+          return;
+        end
+        
+        if (remoteScore - spamState.lastScore > 150) then
+            
+            local amt = math.floor((remoteScore - spamState.lastScore) / 150);
+            spamState.lastScore = remoteScore;
+            State.launcher:spam(amt);
+        
+        elseif (remoteScore < spamState.lastScore) then
+            spamState.lastScore = remoteScore;
+        end
+    end
+
+end
 
 function client.update(dt)
     if (State.paused) then
@@ -1485,32 +1560,8 @@ function client.update(dt)
         end
         
     end
-    
-    
-    State.grid:serialize(stateshare);
-    
-    client.home.gridState = stateshare;
-    client.home.score = State.score; 
-    
-    --TODO MOVE--
-    if (client.share.players ~= nil) then
-    
-        local remoteState = client.share.players[client.id]
-        
-        State.remoteGrid:deserialize(remoteState.gridState);
-        
-        local remoteScore = remoteState.score or 0;
-        
-        if (remoteScore - spamState.lastScore > 200) then
-            
-            local amt = math.floor((remoteScore - spamState.lastScore) / 200);
-            spamState.lastScore = remoteScore;
-            State.launcher:spam(amt);
-        
-        elseif (remoteScore < spamState.lastScore) then
-            spamState.lastScore = remoteScore;
-        end
-    end
+  
+    updateMultiplayer();
     
 end
 
@@ -1526,7 +1577,20 @@ function drawUI(state)
 end
 
 
-function love.draw()
+function drawMultiplayer()
+
+  if (State.remoteGrid) then
+      State.remoteGrid:draw(State, State.gfxRemote);
+  end
+  
+  if (State.remoteLauncher) then
+      setmetatable(State.remoteLauncher, Launcher);
+      State.remoteLauncher:draw(State.gfxRemote);
+  end
+
+end
+
+function client.draw()
   
   Assets.shaders.gem:send("time", State.clock);
   
@@ -1538,12 +1602,10 @@ function love.draw()
   
   
   State.grid:draw(State, State.gfx);
-  
+  State.launcher:draw(State.gfx);
  
-  State.remoteGrid:draw(State, State.gfxRemote);
-  
-  State.launcher:draw(State);
-  
+  drawMultiplayer();
+ 
 end
 
 function love.mousemoved( x, y )
