@@ -1489,13 +1489,18 @@ function updateMultiplayer()
     client.home.score = State.score; 
     client.home.launcher = State.launcher;
     
-    
     if (client.share.players ~= nil) then
     
+        local remoteState = nil;
+        
         for id, v in pairs(client.share.players) do
            if (client.id ~= id) then
               remoteState = v
            end
+        end
+        
+        if (not remoteState) then
+          return
         end
     
         --play yourself
@@ -1560,9 +1565,10 @@ function client.update(dt)
         end
         
     end
-  
-    updateMultiplayer();
     
+    if (client.connected) then  
+      updateMultiplayer();
+    end
 end
 
 function drawUI(state)
@@ -1604,8 +1610,10 @@ function client.draw()
   State.grid:draw(State, State.gfx);
   State.launcher:draw(State.gfx);
  
-  drawMultiplayer();
- 
+  if (client.connected) then
+    drawMultiplayer();
+  end
+  
 end
 
 function love.mousemoved( x, y )
