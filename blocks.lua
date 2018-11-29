@@ -1393,7 +1393,7 @@ function initMultiplayer()
     State.remoteGrid = Grid:new();
     
     State.remoteLauncher = nil;
-    client.start('localhost:22122');
+    client.start('98.10.59.211:22122');
 
     print("Connecting to localhost:22122..");
 end
