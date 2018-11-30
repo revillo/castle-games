@@ -47,6 +47,7 @@ local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
 local POINT_SIZE = 1/220;
 local GEM_SPEED = 23;
+local SPAM_INCREMENT = 75.0;
 local GEM_SHEEN = 0.5;
 
 local EASING = function(t) 
@@ -257,6 +258,17 @@ function Grid:nextLevel()
     self:setLevel( (self.levelNumber or 0) + 1 );
 end
 
+function Grid:displayText(text) 
+
+  self.textAnim:addAnimation(text, nil, {
+        duration = 2,
+        x = State.gfx.tileOffsetX(self.numCols * 0.5) ,
+        y = State.gfx.tileOffsetY(self.numRows * 0.5),
+        size = 2
+    });
+
+end
+
 function Grid:setLevel(n)
     n = n % #LEVELS;
     
@@ -300,13 +312,13 @@ function Grid:setLevel(n)
     
     self:dropOrphans();
     
-    
+    --[[
     self.textAnim:addAnimation("Level ".. self.levelNumber, nil, {
         duration = 2,
         x = State.gfx.tileOffsetX(self.numCols * 0.5) ,
         y = State.gfx.tileOffsetY(self.numRows * 0.5),
         size = 2
-    });
+    });]]
 end
 
 function Grid:init()
@@ -1021,6 +1033,9 @@ function Grid:checkLose()
     
     if (didLose) then
         self.didLose = false;
+        self.loseFlag = true;
+        
+        --[[
         Assets.sounds.lose:play();
         local prevLevel = LEVELS[self.levelNumber - 1];
         if (prevLevel ~= nil) then
@@ -1029,6 +1044,7 @@ function Grid:checkLose()
             State.score = 0;
         end
         self:setLevel(self.levelNumber);
+        ]]
     end      
     
     return didLose;
@@ -1303,8 +1319,8 @@ end
 function Launcher:launchSpam()
     
     local proj = Projectile:new({
-        position = vec2(State.grid.numCols, self.position.y),
-        direction = vec2(-randFloat(0.1, 1), -1),
+        position = vec2(randFloat(1, State.grid.numCols), self.position.y),
+        direction = vec2(-randFloat(0.15, 0.15), -1),
         uuid = self.projectileUUID,
         config = SpamBlockArray[math.random(2)]
     });
@@ -1364,29 +1380,26 @@ function client.disconnect() -- Called on disconnect from server
     print("disconnected")
 end
 
---[[
-function client.receive(msg) -- Called when server does `server.send(id, ...)` with our `id`
-    --print("Received msg")
-    for k,v in pairs(msg.room.players) do
-       -- print(k, v);
-       
-       State.remoteGrid:deserialize(v.gridState);
-       
-       local remoteScore = v.score;
-    
-        if (remoteScore - spamState.lastScore > 100) then
-            
-            local amt = math.floor((remoteScore - spamState.lastScore) / 100);
-            spamState.lastScore = remoteScore;
-            State.launcher:spam(amt);
-        
-        end
-       
-       return;
-       
-    end
+
+function client.receive(msg) 
    
-end]]
+   if (msg.lost) then
+    
+      if (msg.lost ~= client.id) then
+        State.grid:displayText("Winner");
+        State.grid:setLevel(1);
+        State.score = 0;
+        Assets.sounds.win:play();
+      else
+        State.grid:displayText("Loser");
+        Assets.sounds.lose:play();
+        State.score = 0;
+        State.grid:setLevel(1);
+      end
+    
+   end
+   
+end
 
 function initMultiplayer()
 
@@ -1489,6 +1502,13 @@ function updateMultiplayer()
     client.home.score = State.score; 
     client.home.launcher = State.launcher;
     
+    if (State.grid.loseFlag) then
+      State.grid.loseFlag = false;
+      client.send({
+        lost = client.id,
+      });
+    end
+    
     if (client.share.players ~= nil) then
     
         local remoteState = nil;
@@ -1500,7 +1520,7 @@ function updateMultiplayer()
         end
         
         if (not remoteState) then
-          return
+          remoteState = client.share.players[client.id]
         end
     
         --play yourself
@@ -1521,9 +1541,9 @@ function updateMultiplayer()
           return;
         end
         
-        if (remoteScore - spamState.lastScore > 150) then
+        if (remoteScore - spamState.lastScore > SPAM_INCREMENT) then
             
-            local amt = math.floor((remoteScore - spamState.lastScore) / 150);
+            local amt = math.floor((remoteScore - spamState.lastScore) / SPAM_INCREMENT);
             spamState.lastScore = remoteScore;
             State.launcher:spam(amt);
         
@@ -1660,6 +1680,10 @@ function love.keypressed(k)
     
     if (k == "v") then
         State.launcher:spam(1);
+    end
+    
+    if (k == "l") then
+      State.grid.didLose = true;
     end
 
 end
