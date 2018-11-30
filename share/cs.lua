@@ -300,6 +300,27 @@ local loveCbs = {
     joystickremoved = { client = true },
 }
 
+local throttle = function(fn, delta)
+  
+   local tick = love.timer.getTime() - delta;
+  return function(...) 
+    local now = love.timer.getTime();
+    if (now > tick + delta) then
+      fn(...)
+      tick = now
+    end
+  end
+ 
+end
+
+local throttleDelta = 1/60.0;
+
+
+server.preupdate = throttle(server.preupdate, throttleDelta);
+server.postupdate = throttle(server.postupdate, throttleDelta);
+client.preupdate = throttle(client.preupdate, throttleDelta);
+client.postupdate = throttle(client.postupdate, throttleDelta);
+
 for cbName, where in pairs(loveCbs) do
     love[cbName] = function(...)
         if where.server and server.enabled then
