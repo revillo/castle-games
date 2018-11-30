@@ -31,19 +31,9 @@ function server.disconnect(id) -- Called on disconnect from client with `id`
 
 end
 
-function broadcast(...)
-  
-  for id, client in pairs(clients) do
-    
-    server.send(id, ...)
-    
-  end
-  
-end
-
 function server.receive(id, ...) -- Called when client with `id` does `client.send(...)`
     
-    broadcast(...)
+    server.send('all', ...)
     
 end
 

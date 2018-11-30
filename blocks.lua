@@ -47,7 +47,7 @@ local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
 local POINT_SIZE = 1/220;
 local GEM_SPEED = 23;
-local SPAM_INCREMENT = 75.0;
+local SPAM_INCREMENT = 100.0;
 local GEM_SHEEN = 0.5;
 
 local EASING = function(t) 
@@ -517,7 +517,6 @@ function Grid:draw(state, gfx)
     love.graphics.setColor(0.1, 0.1, 0.1, 1.0);
 
     love.graphics.setScissor( gfx.tileOffsetX(1), gfx.tileOffsetY(2), gfx.tileSize(self.numCols), gfx.tileSize(self.numRows - 1))
-
     
     gfx.rect("fill", 
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
@@ -1262,10 +1261,15 @@ function Launcher:draw(gfx)
     
     love.graphics.setShader(Assets.shaders.gem);
     
+      love.graphics.setScissor( gfx.tileOffsetX(1), gfx.tileOffsetY(2), gfx.tileSize(State.grid.numCols), gfx.tileSize(State.grid.numRows - 1))
+    
     self:eachProjectile(function(proj) 
       self:drawProjectile(proj, gfx);
     end);
 
+    love.graphics.setScissor(0, 0, State.width, State.height);
+
+    
     self:drawProjectile(self.nextProjectile, gfx);
     self:drawProjectile(self.projectileOnDeck, gfx);
     love.graphics.setShader();

@@ -28,7 +28,7 @@ do
         if host == nil then
             error("couldn't start server -- is port in use?")
         end
-        host:compress_with_range_coder()
+        --host:compress_with_range_coder()
         server.started = true
     end
 
@@ -158,7 +158,7 @@ do
 
     function client.start(address)
         host = enet.host_create()
-        host:compress_with_range_coder()
+        --host:compress_with_range_coder()
         host:connect(address or '127.0.0.1:22122')
     end
 
@@ -172,13 +172,20 @@ do
         return assert(peer, 'client is not connected'):round_trip_time()
     end
 
+    
     function client.preupdate(dt)
         -- Process network events
+        local eventCounter = 0
+        local eventTime = love.timer.getTime();
+        
+        
         if host then
             while true do
                 local event = host:service(0)
                 if not event then break end
-
+                
+                eventCounter = eventCounter + 1;
+                
                 -- Server connected?
                 if event.type == 'connect' then
                     -- Ignore this, wait till we receive id (see below)
@@ -241,12 +248,14 @@ do
                         peer:send(marshal.encode({ exact = home:__diff(0, true) }))
                     end
                 end
-            end
+            end -- end while
+                        
         end
     end
 
     function client.postupdate(dt)
         -- Send state updates to server
+        local eventTimer = 0;
         if peer then
             local diff = home:__diff(0)
             if diff ~= nil then -- `nil` if nothing changed
