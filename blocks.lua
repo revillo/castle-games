@@ -204,8 +204,10 @@ function generateGfxContext(scale, dx, dy)
 end
 
 
-State.gfx = generateGfxContext(1, 20, -5);
+State.gfxLeft = generateGfxContext(1, 20, -5);
 State.gfxRemote = generateGfxContext(1, 140, -5);
+State.gfxCenter = generateGfxContext(1, 60, -5);
+State.gfx = State.gfxCenter;
 
 --CLASSES--
 
@@ -450,7 +452,9 @@ function Grid:updateEffects(state)
           
         s:emit(150);
 
-        --gem.__shards = s;
+        if (not self.multi) then
+            gem.shards = s;
+        end
         
     end
     
@@ -1071,7 +1075,7 @@ function Grid:update(state)
     self:updateEffects(state);
     self.textAnim:update(state.dt);
     
-    if (self.paused) then
+    if (State.paused or self.paused) then
         return
     end;
     
@@ -1130,7 +1134,7 @@ function Launcher:reset()
     self.bombTracker = 1;
     self.spamAmt = 0;
     self.projectiles = {};
-    self.position = vec2(State.grid.numCols / 2 + 0.5, State.grid.config.maxRows);
+    self.position = vec2(State.grid.numCols / 2 + 0.5, State.grid.config.maxRows + 1.0);
     self.projectileUUID = 1;
     
     self.nextProjectile = self:createProjectile();
@@ -1170,7 +1174,7 @@ end
 
 function Launcher:fire(x, y) 
 
-    if (self.paused or self.reloadTime < 1.0) then
+    if (State.paused or self.paused or self.reloadTime < 1.0) then
         return
     end
 
@@ -1367,6 +1371,19 @@ function resize(w, h)
     State.width = w;
     State.height = h;
     State.unit = math.min(w * POINT_SIZE, h * POINT_SIZE)
+    
+    local centerx = w / 2;
+    
+    local halfTiles = 4;
+    
+    if (State.mode ~= State.menu and State.grid and State.grid.numCols) then
+        halfTiles = State.grid.numCols / 2;
+    end
+    
+    print(halfTiles);
+    
+    State.gfxCenter = generateGfxContext(1, centerx / State.gfx.pts(1) - State.gfx.tileSize(halfTiles) / State.gfx.pts(1), -5);
+
 end
 
 
@@ -1398,15 +1415,15 @@ function client.receive(msg)
     
       if (msg.lost ~= client.id) then
         State.grid:displayText("Winner");
-        State.grid:setLevel(1);
-        State.score = 0;
         Assets.sounds.win:play();
       else
         State.grid:displayText("Loser");
         Assets.sounds.lose:play();
-        State.score = 0;
-        State.grid:setLevel(1);
       end
+      
+      
+    State.score = 0;
+    State.grid:setLevel("multi");
     
    end
    
@@ -1440,6 +1457,7 @@ end
 
 function goNextLevel()
     State.grid:nextLevel();
+    resize(State.width, State.height);
     State.launcher:reset();
     Assets.sounds.win:play();
 end
@@ -1536,14 +1554,22 @@ function MenuMode:init()
     
         UI.Button:new {
             text = "Play Singleplayer",
-            x = State.gfx.tileOffsetX(2),
-            y = State.gfx.tileOffsetY(5),
-            width = State.gfx.tileSize(6),
-            height = State.gfx.tileSize(1),
-            size = 1,
+            x = State.gfx.tileOffsetX(0),
+            y = State.gfx.tileOffsetY(6),
+            width = State.gfx.tileSize(8),
+            height = State.gfx.tileSize(1.5),
+            --color = BlockType.Red.color,
+            gem = {
+                c = 0,
+                r = 6,
+                w = 8,
+                h = 1.5,
+                shrink = 1,
+                config = BlockType.Red
+            },
+            size = 2,
             action = function() 
-                State.play.multi = false; 
-                State.grid:setLevel(1);
+                State.play:initSingleplayer();
                 State.launcher:reset();
                 State.mode = State.play;
             end
@@ -1552,11 +1578,20 @@ function MenuMode:init()
         UI.Button:new {
         
             text = "Play Multiplayer",
-            x = State.gfx.tileOffsetX(2),
-            y = State.gfx.tileOffsetY(7),
-            width = State.gfx.tileSize(6),
-            height = State.gfx.tileSize(1),
-            size = 1,
+            x = State.gfx.tileOffsetX(0),
+            y = State.gfx.tileOffsetY(9),
+            width = State.gfx.tileSize(8),
+            height = State.gfx.tileSize(1.5),
+            --color = BlockType.Blue.color,
+            size = 2,
+            gem = {
+                c = 0,
+                r = 9,
+                w = 8,
+                h = 1.5,
+                shrink = 1,
+                config = BlockType.Blue
+            },
             action = function() 
                 State.play:initMultiplayer(); 
                 State.launcher:reset();
@@ -1572,11 +1607,19 @@ function MenuMode:draw()
     
     --State.play:draw()
 
+     
+    
     self.elems:each(function(elem)
         
+        love.graphics.setShader(Assets.shaders.gem)
+
+        State.gfx.drawGem(elem.gem, 0);        
+        love.graphics.setShader();
+
         elem:draw();
         
     end);
+    
     
     
 end
@@ -1584,6 +1627,23 @@ end
 function MenuMode:update(dt)
 
 
+end
+
+function MenuMode:mousemoved(x,y)
+    self.elems:each(function(elem)
+        
+        --elem.gem.shrink = 0.9
+        
+    end);
+    
+    self.elems:each(function(elem)
+        
+        if(elem:isHover(x,y)) then
+            --elem.gem.shrink = 1.0
+        end
+        
+    end);
+    
 end
 
 function MenuMode:mousepressed(x, y)
@@ -1616,6 +1676,17 @@ function PlayMode:initMultiplayer()
     print("Connecting to"..url);
 
     self.multi = true;
+    
+    State.gfx = State.gfxLeft;
+end
+
+function PlayMode:initSingleplayer()
+
+    State.gfx = State.gfxCenter;
+    State.play.multi = false; 
+    State.grid:setLevel(1);
+    resize(State.width, State.height);
+    
 end
 
 function PlayMode:update(dt)
@@ -1657,6 +1728,8 @@ end
 function PlayMode:draw()
    
   drawUI(State);
+  
+  
   State.grid:draw(State, State.gfx);
   State.launcher:draw(State.gfx);
  

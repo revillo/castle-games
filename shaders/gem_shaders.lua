@@ -197,7 +197,7 @@ float snoise(vec3 p) {
         
         vec2 rad = uv - vec2(0.5);
        
-        if(height < 0.0 && time > 0.0) {
+        if(height < 0.0 && time > -1.0) {
             return vec4(0.0, 0.0, 0.0, 0.0);
         }
 
