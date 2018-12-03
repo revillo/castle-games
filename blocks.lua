@@ -15,6 +15,7 @@ end
 local Array = require("lib/array")
 local Queue = require("lib/queue")
 local Sound = require("lib/sound")
+local UI = require("lib/ui")
 local TextAnimator = require("lib/TextAnimator")
 --local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/master/lib/easing.lua")
 local easing = {};
@@ -71,7 +72,8 @@ Class = {}
 
 local LEVELS = {
     --colors | columns | scrollSpeed | scoreNeeded
-    {  2,        7,        0.15,          100000 },
+    --{  2,        7,        0.15,          100000 },
+    {  2,        5,        0.15,          1800 },
     {  2,        6,        0.17,          4500 },
     {  2,        7,        0.18,          9000 },
     {  2,        8,        0.19,         14000 },
@@ -87,7 +89,9 @@ local LEVELS = {
     {  3,        5,       0.15,          59000 },
     {  3,        6,       0.17,          64000 },
     {  3,        7,       0.20,          70000 },
-    {  3,        8,       0.23,          80000 }
+    {  3,        8,       0.23,          80000 },
+    
+    multi = {  2, 7,  0.18, -1 }
 }
 
 
@@ -270,7 +274,12 @@ function Grid:displayText(text)
 end
 
 function Grid:setLevel(n)
-    n = n % #LEVELS;
+    if (type(n) == "number") then
+        n = n % #LEVELS;
+        self.multi = false;
+    else
+        self.multi = true;
+    end
     
     local level = LEVELS[n];
     local config = {};
@@ -312,13 +321,9 @@ function Grid:setLevel(n)
     
     self:dropOrphans();
     
-    --[[
-    self.textAnim:addAnimation("Level ".. self.levelNumber, nil, {
-        duration = 2,
-        x = State.gfx.tileOffsetX(self.numCols * 0.5) ,
-        y = State.gfx.tileOffsetY(self.numRows * 0.5),
-        size = 2
-    });]]
+    if (not self.multi) then
+        self:displayText("Level ".. self.levelNumber);
+    end
 end
 
 function Grid:init()
@@ -338,7 +343,7 @@ function Grid:init()
         bombChance = 0.25
     }
     
-    self:setLevel(1);
+    self:setLevel("multi");
 
 end
 
@@ -471,6 +476,8 @@ end
 
 function Grid:drawProgressBar(state, gfx)
     
+    if (self.levelNumber == "multi") then return end
+    
     local dangerThresh = 0.55;
     local dangerFlash = math.max((self.danger - dangerThresh) * 2.0, 0.0); 
     dangerFlash = math.abs(0.5 * dangerFlash * math.cos(State.clock * 6.0));
@@ -559,7 +566,7 @@ function Grid:draw(state, gfx)
 
     love.graphics.setScissor(0, 0, State.width, State.height);
     
-    local dangerFlash = self.dangerFlash;
+    local dangerFlash = self.dangerFlash or 0;
     love.graphics.setColor(0.5 + dangerFlash, 0.5 - dangerFlash * 0.5, 0.5 - dangerFlash, 0.5 + dangerFlash);
 
     gfx.rect("line", 
@@ -677,7 +684,7 @@ function Grid:triggerBlock(br, bc)
             
             end
 
-            if (tmpScore > LEVELS[self.levelNumber][4]) then
+            if (not self.multi and tmpScore > LEVELS[self.levelNumber][4]) then
                 clearAll = true;
             end
         end
@@ -1034,16 +1041,16 @@ function Grid:checkLose()
         self.didLose = false;
         self.loseFlag = true;
         
-        --[[
-        Assets.sounds.lose:play();
-        local prevLevel = LEVELS[self.levelNumber - 1];
-        if (prevLevel ~= nil) then
-            State.score = prevLevel[4];
-        else
-            State.score = 0;
+        if (self.levelNumber ~= "multi") then
+            Assets.sounds.lose:play();
+            local prevLevel = LEVELS[self.levelNumber - 1];
+            if (prevLevel ~= nil) then
+                State.score = prevLevel[4];
+            else
+                State.score = 0;
+            end
+            self:setLevel(self.levelNumber);
         end
-        self:setLevel(self.levelNumber);
-        ]]
     end      
     
     return didLose;
@@ -1405,80 +1412,30 @@ function client.receive(msg)
    
 end
 
-function initMultiplayer()
 
-    State.remoteGrid = Grid:new();
-    
-    State.remoteLauncher = nil;
-    
-    local url = '207.254.45.246:22122';
-    
-    client.start(url);
+function drawUI(state)
 
-    print("Connecting to"..url);
+    love.graphics.setColor(1,1,1,1);
+    
+    local fsize = State.gfx.pts(0.4);
+    
+    love.graphics.print("Level: " .. State.grid.levelNumber, 0, 0, 0, fsize, fsize);
+    love.graphics.print("Score: " .. State.score .. " / " .. State.grid.config.scoreNeeded, 0, fsize * 16, 0, fsize, fsize);
+    
 end
 
-function client.load()
-    local w, h = love.graphics.getDimensions();
-    resize(w,h);
-    
-    love.graphics.setBackgroundColor( 0.05, 0.05, 0.05 )
 
-    Assets.sounds = {
-      zap =     Sound:new("sounds/whoosh.wav", 3),
-      chip = Sound:new("sounds/chip2.wav",  15),
-      bounce =  Sound:new("sounds/bounce.wav",  5),
-      attach =  Sound:new("sounds/ping.wav",  2),
-      glass = Sound:new("sounds/glass2.wav",  15),
-      lose = Sound:new("sounds/lose.wav"),
-      win = Sound:new("sounds/win.wav"),
-      --bomb = Sound:new("sounds/bomb.wav", 2)
-    }  
-    
-    for k,v in pairs(Assets.sounds) do
-        v:setVolume(VOLUME);
-    end
-    
-    Assets.sounds.zap:setVolume(0.5);
-    Assets.sounds.attach:setVolume(VOLUME);
-    --Assets.sounds.bomb:setVolume(VOLUME * 0);
-    
-    Assets.images = {
-      gem =  love.graphics.newImage("images/gem.png"),
-      sheen =  love.graphics.newImage("images/sheen.png"),
-      shard =  love.graphics.newImage("images/shard.png"),
-      bg = love.graphics.newImage("images/bg.png"),
-      --diamond = love.graphics.newImage("images/diamond.png")
-    }
-    
-    Assets.fonts = {
-        
-        pixel = love.graphics.newImageFont("images/imagefont.png",
-                " abcdefghijklmnopqrstuvwxyz" ..
-                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0" ..
-                "123456789.,!?-+/():;%&`'*#=[]\"")
-    
-    }
-    
-    Assets.shaders = {};
-    Assets.meshes = {};
-    
-    local shaders = require("shaders/gem_shaders");
-    
-    Assets.shaders.gem = shaders.gemShader(love);
-    Assets.meshes.quad = shaders.quadMesh(love);
-    --Assets.meshes.quad:setTexture(Assets.images.diamond);
-    
-    love.graphics.setFont(Assets.fonts.pixel);
-    
-    State.score = 0;
-    State.clock = 0;
-    
-    State.grid = Grid:new();
-    
-    State.launcher = Launcher:new{};
-   
-    initMultiplayer();
+function drawMultiplayer()
+
+  if (State.remoteGrid) then
+      State.remoteGrid:draw(State, State.gfxRemote);
+  end
+  
+  if (State.remoteLauncher) then
+      setmetatable(State.remoteLauncher, Launcher);
+      State.remoteLauncher:draw(State.gfxRemote);
+  end
+
 end
 
 function goNextLevel()
@@ -1558,10 +1515,110 @@ function updateMultiplayer()
             spamState.lastScore = remoteScore;
         end
     end
+    
+    
+    State.remoteGrid:updateRemote(State);
 
 end
 
-function client.update(dt)
+
+local GameMode = Class:new();
+
+function GameMode:keypressed(k) end
+function GameMode:mousemoved(x,y) end
+function GameMode:mousepressed(x,y) end
+
+local MenuMode = GameMode:new();
+
+function MenuMode:init()
+
+    self.elems = Array:new {
+    
+        UI.Button:new {
+            text = "Play Singleplayer",
+            x = State.gfx.tileOffsetX(2),
+            y = State.gfx.tileOffsetY(5),
+            width = State.gfx.tileSize(6),
+            height = State.gfx.tileSize(1),
+            size = 1,
+            action = function() 
+                State.play.multi = false; 
+                State.grid:setLevel(1);
+                State.launcher:reset();
+                State.mode = State.play;
+            end
+        },
+        
+        UI.Button:new {
+        
+            text = "Play Multiplayer",
+            x = State.gfx.tileOffsetX(2),
+            y = State.gfx.tileOffsetY(7),
+            width = State.gfx.tileSize(6),
+            height = State.gfx.tileSize(1),
+            size = 1,
+            action = function() 
+                State.play:initMultiplayer(); 
+                State.launcher:reset();
+                State.mode = State.play;
+            end
+        }
+        
+    };
+    
+end
+
+function MenuMode:draw()
+    
+    --State.play:draw()
+
+    self.elems:each(function(elem)
+        
+        elem:draw();
+        
+    end);
+    
+    
+end
+
+function MenuMode:update(dt)
+
+
+end
+
+function MenuMode:mousepressed(x, y)
+
+    self.elems:each(function(elem)
+        
+        if(elem:isHover(x,y)) then
+            elem.action();
+        end
+        
+    end);
+
+end
+
+
+local PlayMode = GameMode:new()
+
+function PlayMode:initMultiplayer()
+
+    State.grid:setLevel("multi");
+    
+    State.remoteGrid = Grid:new();
+    
+    State.remoteLauncher = nil;
+    
+    local url = '207.254.45.246:22122';
+    
+    client.start(url);
+
+    print("Connecting to"..url);
+
+    self.multi = true;
+end
+
+function PlayMode:update(dt)
     if (State.paused) then
       return
     end
@@ -1574,14 +1631,13 @@ function client.update(dt)
     State.launcher:update(State);
     
     State.grid:update(State);
-    State.remoteGrid:updateRemote(State);
     
     State.launcher:rotate(
         (State.keyboard.a or State.keyboard.left or 0) -
         (State.keyboard.d or State.keyboard.right or 0)
     ); 
     
-    if (State.score > State.grid.config.scoreNeeded) then
+    if (not self.multi and State.score > State.grid.config.scoreNeeded) then
         State.grid:pause();
         State.launcher:pause();
         
@@ -1593,75 +1649,38 @@ function client.update(dt)
         
     end
     
-    if (client.connected) then  
+    if (self.multi and client.connected) then  
       updateMultiplayer();
     end
 end
 
-function drawUI(state)
-
-    love.graphics.setColor(1,1,1,1);
-    
-    local fsize = State.gfx.pts(0.4);
-    
-    love.graphics.print("Level: " .. State.grid.levelNumber, 0, 0, 0, fsize, fsize);
-    love.graphics.print("Score: " .. State.score .. " / " .. State.grid.config.scoreNeeded, 0, fsize * 16, 0, fsize, fsize);
-    
-end
-
-
-function drawMultiplayer()
-
-  if (State.remoteGrid) then
-      State.remoteGrid:draw(State, State.gfxRemote);
-  end
-  
-  if (State.remoteLauncher) then
-      setmetatable(State.remoteLauncher, Launcher);
-      State.remoteLauncher:draw(State.gfxRemote);
-  end
-
-end
-
-function client.draw()
-  
-  Assets.shaders.gem:send("time", State.clock);
-  
-  --love.graphics.setBlendMode("alpha")
-  --love.graphics.setColor(0.8, 0.8, 0.8, 0.5);
-  --love.graphics.draw(Assets.images.bg, 0, 0, 0, State.width / 1200, State.height / 900)
-  
+function PlayMode:draw()
+   
   drawUI(State);
-  
-  
   State.grid:draw(State, State.gfx);
   State.launcher:draw(State.gfx);
  
-  if (client.connected) then
+  if (self.multi and client.connected) then
     drawMultiplayer();
   end
-  
+ 
 end
 
-function love.mousemoved( x, y )
 
+function PlayMode:mousemoved(x, y)
+  
   local tx, ty = State.gfx.pixToOffset(x, y);
   State.launcher:setTarget(tx - 0.5, ty - 0.5);
-    
+   
 end
 
-
-function love.mousepressed( x, y, button, istouch, presses )
+function PlayMode:mousepressed(x, y)
     
     local tx, ty = State.gfx.pixToOffset(x, y);
-    
     State.launcher:fire(tx - 0.5, ty - 0.5);
-
 end
 
-function love.keypressed(k)
-    
-    State.keyboard[k] = 1;
+function PlayMode:keypressed(k)
 
     if (k == "space") then
         State.launcher:fire();
@@ -1692,6 +1711,112 @@ function love.keypressed(k)
     if (k == "l") then
       State.grid.didLose = true;
     end
+
+
+end
+
+function client.load()
+    local w, h = love.graphics.getDimensions();
+    resize(w,h);
+    
+    --love.graphics.setBackgroundColor( 0.05, 0.05, 0.05 )
+
+    Assets.sounds = {
+      zap =     Sound:new("sounds/whoosh.wav", 3),
+      chip = Sound:new("sounds/chip2.wav",  15),
+      bounce =  Sound:new("sounds/bounce.wav",  5),
+      attach =  Sound:new("sounds/ping.wav",  2),
+      glass = Sound:new("sounds/glass2.wav",  15),
+      lose = Sound:new("sounds/lose.wav"),
+      win = Sound:new("sounds/win.wav"),
+      --bomb = Sound:new("sounds/bomb.wav", 2)
+    }  
+    
+    for k,v in pairs(Assets.sounds) do
+        v:setVolume(VOLUME);
+    end
+    
+    Assets.sounds.zap:setVolume(0.5);
+    Assets.sounds.attach:setVolume(VOLUME);
+    --Assets.sounds.bomb:setVolume(VOLUME * 0);
+    
+    Assets.images = {
+      gem =  love.graphics.newImage("images/gem.png"),
+      sheen =  love.graphics.newImage("images/sheen.png"),
+      shard =  love.graphics.newImage("images/shard.png"),
+      bg = love.graphics.newImage("images/bg.png"),
+      --diamond = love.graphics.newImage("images/diamond.png")
+    }
+    
+    Assets.fonts = {
+        
+        pixel = love.graphics.newImageFont("images/imagefont.png",
+                " abcdefghijklmnopqrstuvwxyz" ..
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0" ..
+                "123456789.,!?-+/():;%&`'*#=[]\"")
+    
+    }
+    
+    Assets.shaders = {};
+    Assets.meshes = {};
+    
+    local shaders = require("shaders/gem_shaders");
+    
+    Assets.shaders.gem = shaders.gemShader(love);
+    Assets.meshes.quad = shaders.quadMesh(love);
+    --Assets.meshes.quad:setTexture(Assets.images.diamond);
+    
+    love.graphics.setFont(Assets.fonts.pixel);
+    
+    State.score = 0;
+    State.clock = 0;
+    
+    State.grid = Grid:new();
+    State.launcher = Launcher:new{};
+    
+    State.menu = MenuMode:new();
+    State.play = PlayMode:new();
+    
+    State.mode = State.menu;
+   
+end
+
+function client.update(dt)
+    
+    State.mode:update(dt);
+
+end
+
+function client.draw()
+  
+  Assets.shaders.gem:send("time", State.clock);
+  
+  love.graphics.setBlendMode("alpha")
+  --love.graphics.setColor(0.8, 0.8, 0.8, 0.5);
+  --love.graphics.draw(Assets.images.bg, 0, 0, 0, State.width / 1200, State.height / 900)
+  
+  State.mode:draw();
+  
+end
+
+function love.mousemoved( x, y )
+ 
+    State.mode:mousemoved(x,y);
+ 
+end
+
+
+function love.mousepressed( x, y, button, istouch, presses )
+    
+    State.mode:mousepressed(x,y);
+
+end
+
+function love.keypressed(k)
+    
+    State.keyboard[k] = 1;
+    
+    State.mode:keypressed(k)
 
 end
 
