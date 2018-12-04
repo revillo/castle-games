@@ -86,10 +86,10 @@ local LEVELS = {
     {  2,        8,       0.34,          49000 }, 
     
     {  2,        10,       0.34,         54000 }, 
-    {  3,        5,       0.15,          59000 },
-    {  3,        6,       0.17,          64000 },
-    {  3,        7,       0.20,          70000 },
-    {  3,        8,       0.23,          80000 },
+    {  3,        5,       0.14,          59000 },
+    {  3,        6,       0.15,          64000 },
+    {  3,        7,       0.16,          70000 },
+    {  3,        8,       0.16,          76000 },
     
     multi = {  2, 7,  0.18, -1 }
 }
@@ -268,7 +268,7 @@ function Grid:displayText(text)
 
   self.textAnim:addAnimation(text, nil, {
         duration = 2,
-        x = State.gfx.tileOffsetX(self.numCols * 0.5) ,
+        x = State.gfx.tileOffsetX(self.numCols * 0.4),
         y = State.gfx.tileOffsetY(self.numRows * 0.5),
         size = 2
     });
@@ -288,14 +288,16 @@ function Grid:setLevel(n)
     
     self.levelNumber = n;
     self.danger = 0;
-    
-    config.maxRows = 15;
     config.bombChance = 0.25;
+
+    config.maxRows = 15;
     
     if (level[1] == 2) then
         config.blockConfigs = {BlockType.Blue, BlockType.Red};
+        config.bombChance = 0.25;
     elseif(level[1] == 3) then
         config.blockConfigs = {BlockType.Blue, BlockType.Red, BlockType.Green};
+        config.bombChance = 0.5;
     elseif(level[1] == 4) then
         config.blockConfigs = {BlockType.Blue, BlockType.Red, BlockType.Green, BlockType.Yellow};
     end
@@ -322,6 +324,8 @@ function Grid:setLevel(n)
     self:recycle();
     
     self:dropOrphans();
+    
+    resize(State.width, State.height);
     
     if (not self.multi) then
         self:displayText("Level ".. self.levelNumber);
@@ -1134,7 +1138,7 @@ function Launcher:reset()
     self.bombTracker = 1;
     self.spamAmt = 0;
     self.projectiles = {};
-    self.position = vec2(State.grid.numCols / 2 + 0.5, State.grid.config.maxRows + 1.0);
+    self.position = vec2(State.grid.numCols / 2 + 0.5, State.grid.config.maxRows + 0.5);
     self.projectileUUID = 1;
     
     self.nextProjectile = self:createProjectile();
@@ -1376,13 +1380,21 @@ function resize(w, h)
     
     local halfTiles = 4;
     
-    if (State.mode ~= State.menu and State.grid and State.grid.numCols) then
+    if (State.grid and State.grid.numCols) then
         halfTiles = State.grid.numCols / 2;
     end
+      
+    local oldCenter = State.gfxCenter;
     
-    print(halfTiles);
     
-    State.gfxCenter = generateGfxContext(1, centerx / State.gfx.pts(1) - State.gfx.tileSize(halfTiles) / State.gfx.pts(1), -5);
+    State.gfxCenter = generateGfxContext(1, 
+      centerx / State.gfx.pts(1) - State.gfx.tileSize(halfTiles) / State.gfx.pts(1), 
+      -5
+     );
+     
+     if (State.gfx == oldCenter) then
+      State.gfx = State.gfxCenter;
+     end
 
 end
 
@@ -1456,7 +1468,7 @@ function drawMultiplayer()
 end
 
 function goNextLevel()
-    State.grid:nextLevel();
+   State.grid:nextLevel();
     resize(State.width, State.height);
     State.launcher:reset();
     Assets.sounds.win:play();
@@ -1553,7 +1565,7 @@ function MenuMode:init()
     self.elems = Array:new {
     
         UI.Button:new {
-            text = "Play Singleplayer",
+            text = "Singleplayer",
             x = State.gfx.tileOffsetX(0),
             y = State.gfx.tileOffsetY(6),
             width = State.gfx.tileSize(8),
@@ -1567,23 +1579,24 @@ function MenuMode:init()
                 shrink = 1,
                 config = BlockType.Red
             },
-            size = 2,
+            size = 1.5,
             action = function() 
                 State.play:initSingleplayer();
                 State.launcher:reset();
                 State.mode = State.play;
+                Assets.sounds.glass:play()
             end
         },
         
         UI.Button:new {
         
-            text = "Play Multiplayer",
+            text = "Multiplayer",
             x = State.gfx.tileOffsetX(0),
             y = State.gfx.tileOffsetY(9),
             width = State.gfx.tileSize(8),
             height = State.gfx.tileSize(1.5),
             --color = BlockType.Blue.color,
-            size = 2,
+            size = 1.5,
             gem = {
                 c = 0,
                 r = 9,
@@ -1596,6 +1609,7 @@ function MenuMode:init()
                 State.play:initMultiplayer(); 
                 State.launcher:reset();
                 State.mode = State.play;
+                Assets.sounds.glass:play()
             end
         }
         
@@ -1605,11 +1619,13 @@ end
 
 function MenuMode:draw()
     
-    --State.play:draw()
-
-     
-    
     self.elems:each(function(elem)
+        
+        elem.x = State.gfx.tileOffsetX(0)
+        elem.y = State.gfx.tileOffsetY(elem.gem.r)
+        elem.width = State.gfx.tileSize(8)
+        elem.height = State.gfx.tileSize(1.5)
+        elem.size = State.gfx.pts(0.5);
         
         love.graphics.setShader(Assets.shaders.gem)
 
@@ -1630,18 +1646,17 @@ function MenuMode:update(dt)
 end
 
 function MenuMode:mousemoved(x,y)
-    self.elems:each(function(elem)
-        
-        --elem.gem.shrink = 0.9
-        
-    end);
+
     
     self.elems:each(function(elem)
-        
         if(elem:isHover(x,y)) then
-            --elem.gem.shrink = 1.0
+            if (elem.gem.shrink < 1) then
+              elem.gem.shrink = 1;
+              Assets.sounds.chip:play();
+            end
+        else
+            elem.gem.shrink = 0.95;
         end
-        
     end);
     
 end
@@ -1681,12 +1696,15 @@ function PlayMode:initMultiplayer()
 end
 
 function PlayMode:initSingleplayer()
+    
+    State.grid.numCols = LEVELS[1][2];
+    resize(State.width, State.height);
 
     State.gfx = State.gfxCenter;
     State.play.multi = false; 
     State.grid:setLevel(1);
-    resize(State.width, State.height);
-    
+    State.gfx = State.gfxCenter;
+
 end
 
 function PlayMode:update(dt)
@@ -1761,9 +1779,7 @@ function PlayMode:keypressed(k)
     
     --Debugging
     if (k == "o") then
-        State.grid:nextLevel();
-        State.launcher:reset();
-        Assets.sounds.win:play();
+        goNextLevel();
     end
     
     if (k == "p") then
