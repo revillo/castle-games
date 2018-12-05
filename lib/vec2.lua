@@ -135,6 +135,11 @@ function Vec2:set(x, y)
   self.y = y
 end
 
+function Vec2:copy(v2)
+  self.x = v2.x
+  self.y = v2.y
+end
+
 function Vec2:equals(o)
   o = o or {}
   return self.x == o.x and self.y == o.y

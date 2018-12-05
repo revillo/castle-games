@@ -93,6 +93,7 @@ float snoise(vec3 p) {
     extern float time;
     extern vec2 dimensions;
     extern float facets;
+    extern float bomb;
     
     float length0(vec2 p) {
         return max(abs(p.x), abs(p.y));
@@ -171,10 +172,28 @@ float snoise(vec3 p) {
         return vec3(uv * dimensions, height);
     }
     
+    vec4 drawBomb(vec2 uv) {
+      float radius = length(uv - vec2(0.5));
+      
+      if (radius > 0.5) return vec4(0.0, 0.0, 0.0, 0.0);
+      
+      vec3 normal = normalize(vec3(uv, 0.0) - vec3(0.5, 0.5, -0.5));
+      
+      float diffuse = dot(normal, normalize(vec3(-0.2, -0.5, 0.5))) * 0.5 + 0.5;
+      //float diffuse = abs(normal.z) * 0.5 + 0.5;
+      diffuse = pow(diffuse, 20.0);
+      return vec4(vec3(diffuse), 1.0);
+      
+    }
+    
     vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords ){
       
         //vec2 uv = floor(texture_coords * dimensions * 24.0) / (dimensions * 24.0);
         vec2 uv = texture_coords;
+        
+        if (bomb > 0.0) {
+          return drawBomb(uv);
+        }
       
         vec3 pos = gem(uv, texture);
         

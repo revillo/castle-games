@@ -16,14 +16,14 @@ end
 local Button = Class:new();
 
 local DefaultBackgroundColor = {1,0,0,1}
-local DefaultTextColor = {1,1,1,1}
+local DefaultTextColor = {1,1,1,0.7}
 
 function Button:draw()
     
     --love.graphics.setColor(self.backgroundColor or DefaultBackgroundColor);
     --love.graphics.rectangle("fill", self.x, self.y, self.width, self.height);  
     love.graphics.setColor(self.textColor or DefaultTextColor)
-    love.graphics.print(self.text, self.x + self.size * 17, self.y + self.size * 10, 0, self.size, self.size);
+    love.graphics.print(self.text, self.x + self.size * 30, self.y + self.size * 15, 0, self.size, self.size);
 
 end
 

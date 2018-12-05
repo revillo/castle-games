@@ -101,6 +101,8 @@ function generateGfxContext(scale, dx, dy)
         return State.unit * (s) * scale;
     end
     
+    
+    
     local tileSize = function(s)
         return pts(s * 12)
     end
@@ -121,6 +123,9 @@ function generateGfxContext(scale, dx, dy)
         tileOffsetX = tileOffsetX,
         tileOffsetY = tileOffsetY,
         
+        fontScale = function(s)
+          return pts(0.1 * s)
+        end,
         
         drawGem = function(gem, yOffset)
             
@@ -173,24 +178,43 @@ function generateGfxContext(scale, dx, dy)
                 shrink = 1;
             end
             
+              
+            if (block.isBomb) then        
+              
+              love.graphics.setShader();
+              love.graphics.setColor(1,1,1,1);
+              love.graphics.draw(
+                 Assets.images.bomb,
+                 tileOffsetX(x), 
+                 tileOffsetY(y),
+                 0,
+                 tileSize(1) / 111,
+                 tileSize(1) / 104
+              );
+              
+              love.graphics.setShader(Assets.shaders.gem);
+              return;
+              
+            end
+            
             shrink = easing.outBack(shrink, 0, 1, 1);
             love.graphics.setColor(block.config.color);
      
             Assets.shaders.gem:send("scale", {tileSize(shrink),tileSize(shrink)});
             Assets.shaders.gem:send("dimensions", {1,1});
             Assets.shaders.gem:send("facets", block.config.facets);
-           
+            
+--          Assets.shaders.gem:send("bomb", 1);
+
+          
+            
             love.graphics.draw(Assets.meshes.quad, 
                tileOffsetX(x + ((1-shrink) * 0.5)), 
                tileOffsetY(y + ((1-shrink) * 0.5))
             );
                     
-
-            if (block.isBomb) then        
+--          Assets.shaders.gem:send("bomb", 0);
             
-              --todo
-            
-            end
             
         end,
         
@@ -268,9 +292,9 @@ function Grid:displayText(text)
 
   self.textAnim:addAnimation(text, nil, {
         duration = 2,
-        x = State.gfx.tileOffsetX(self.numCols * 0.4),
+        x = State.gfx.tileOffsetX(self.numCols * 0.5),
         y = State.gfx.tileOffsetY(self.numRows * 0.5),
-        size = 2
+        size = State.gfx.fontScale(2)
     });
 
 end
@@ -388,7 +412,7 @@ function Grid:updateEffects(state)
             duration = 0.5,
             x = state.gfx.tileOffsetX(c + 0.2),
             y = state.gfx.tileOffsetY(r + 0.7 + self.yOffset),
-            size = 1
+            size = State.gfx.fontScale(1)
         });
     end
     
@@ -434,7 +458,7 @@ function Grid:updateEffects(state)
             duration = 1.5,
             x = state.gfx.tileOffsetX(gem.c + 0.2 * gem.w),
             y = state.gfx.tileOffsetY(gem.r + self.yOffset + 0.7 * gem.h),
-            size = 2
+            size = State.gfx.fontScale(2)
         });
         
         local s = love.graphics.newParticleSystem(Assets.images.shard, 150);
@@ -1138,11 +1162,12 @@ function Launcher:reset()
     self.bombTracker = 1;
     self.spamAmt = 0;
     self.projectiles = {};
-    self.position = vec2(State.grid.numCols / 2 + 0.5, State.grid.config.maxRows + 0.5);
+    self.position = vec2(State.grid.numCols / 2 + 0.5, State.grid.config.maxRows + 1.2);
     self.projectileUUID = 1;
     
     self.nextProjectile = self:createProjectile();
-    self.nextProjectile.position:addY(-1);
+    self.nextProjectile.position:copy(self.position);
+    self.nextProjectile.shrink = 1.0;
     self.projectileOnDeck = self:createProjectile();
     
 end
@@ -1150,8 +1175,9 @@ end
 function Launcher:createProjectile()
     
     local projectile = Projectile:new({
-        position = vec2(self.position.x, self.position.y + 1.5),
-        uuid = self.projectileUUID
+        position = vec2(self.position.x , self.position.y + 1.2),
+        uuid = self.projectileUUID,
+        shrink = 0.3
     });
     
     self.bombTracker = self.bombTracker + 1;
@@ -1195,7 +1221,7 @@ function Launcher:fire(x, y)
     end
     
     projectile.direction:normalize();
-    projectile.direction.y = math.min(projectile.direction.y, -0.5);
+    projectile.direction.y = math.min(projectile.direction.y, - 0.5);
     projectile.direction:normalize();
 
     projectile.position = vec2(self.position.x, self.position.y);    
@@ -1206,7 +1232,8 @@ function Launcher:fire(x, y)
     --self.projectileUUID = self.projectileUUID + 1;
     
     self.nextProjectile = self.projectileOnDeck;
-    self.nextProjectile.position:set(self.position.x, self.position.y + 0.5);
+    self.nextProjectile.shrink = 1.0;
+    self.nextProjectile.position:set(self.position.x, self.position.y);
     self.projectileOnDeck = self:createProjectile();
     
 end
@@ -1258,7 +1285,7 @@ function Launcher:drawIndicator(gfx)
     local increment = i;    
 
     indicatorTemp:set(self.position.x, self.position.y);
-    indicatorTemp:addScaled(self.indicatorDelta, increment * 0.4);
+    indicatorTemp:addScaled(self.indicatorDelta, increment * 1);
     
     gfx.drawIndicator(indicatorTemp.x, indicatorTemp.y, (math.sin(-State.clock * 10.0 + i) * 0.1 + 0.8) * (2.0 - (i * 0.4)));
     
@@ -1446,10 +1473,12 @@ function drawUI(state)
 
     love.graphics.setColor(1,1,1,1);
     
-    local fsize = State.gfx.pts(0.4);
+    local fsize = State.gfx.fontScale(2)
+    love.graphics.print("Lv " .. State.grid.levelNumber, State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1), 0, fsize, fsize);
     
-    love.graphics.print("Level: " .. State.grid.levelNumber, 0, 0, 0, fsize, fsize);
-    love.graphics.print("Score: " .. State.score .. " / " .. State.grid.config.scoreNeeded, 0, fsize * 16, 0, fsize, fsize);
+    if (State.grid and State.grid.levelNumber ~= "multi") then
+      love.graphics.print(State.score .. " / " .. State.grid.config.scoreNeeded,  State.gfx.tileOffsetX(State.grid.numCols - 2), State.gfx.tileOffsetY(1), 0, fsize, fsize);
+    end
     
 end
 
@@ -1569,17 +1598,17 @@ function MenuMode:init()
             x = State.gfx.tileOffsetX(0),
             y = State.gfx.tileOffsetY(6),
             width = State.gfx.tileSize(8),
-            height = State.gfx.tileSize(1.5),
+            height = State.gfx.tileSize(2),
             --color = BlockType.Red.color,
             gem = {
                 c = 0,
                 r = 6,
                 w = 8,
-                h = 1.5,
+                h = 2,
                 shrink = 1,
                 config = BlockType.Red
             },
-            size = 1.5,
+            size = State.gfx.fontScale(2),
             action = function() 
                 State.play:initSingleplayer();
                 State.launcher:reset();
@@ -1594,14 +1623,14 @@ function MenuMode:init()
             x = State.gfx.tileOffsetX(0),
             y = State.gfx.tileOffsetY(9),
             width = State.gfx.tileSize(8),
-            height = State.gfx.tileSize(1.5),
+            height = State.gfx.tileSize(2),
             --color = BlockType.Blue.color,
-            size = 1.5,
+            size = State.gfx.fontScale(2),
             gem = {
                 c = 0,
                 r = 9,
                 w = 8,
-                h = 1.5,
+                h = 2,
                 shrink = 1,
                 config = BlockType.Blue
             },
@@ -1625,7 +1654,7 @@ function MenuMode:draw()
         elem.y = State.gfx.tileOffsetY(elem.gem.r)
         elem.width = State.gfx.tileSize(8)
         elem.height = State.gfx.tileSize(1.5)
-        elem.size = State.gfx.pts(0.5);
+        elem.size = State.gfx.fontScale(3),
         
         love.graphics.setShader(Assets.shaders.gem)
 
@@ -1834,6 +1863,7 @@ function client.load()
       sheen =  love.graphics.newImage("images/sheen.png"),
       shard =  love.graphics.newImage("images/shard.png"),
       bg = love.graphics.newImage("images/bg.png"),
+      bomb = love.graphics.newImage("images/bomb.png")
       --diamond = love.graphics.newImage("images/diamond.png")
     }
     
@@ -1842,7 +1872,10 @@ function client.load()
         pixel = love.graphics.newImageFont("images/imagefont.png",
                 " abcdefghijklmnopqrstuvwxyz" ..
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0" ..
-                "123456789.,!?-+/():;%&`'*#=[]\"")
+                "123456789.,!?-+/():;%&`'*#=[]\""),
+                
+        sans = love.graphics.newFont("fonts/OpenSans-ExtraBold.ttf", 30);
+                
     
     }
     
@@ -1855,7 +1888,7 @@ function client.load()
     Assets.meshes.quad = shaders.quadMesh(love);
     --Assets.meshes.quad:setTexture(Assets.images.diamond);
     
-    love.graphics.setFont(Assets.fonts.pixel);
+    love.graphics.setFont(Assets.fonts.sans);
     
     State.score = 0;
     State.clock = 0;
