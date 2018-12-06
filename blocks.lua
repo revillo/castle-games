@@ -178,23 +178,10 @@ function generateGfxContext(scale, dx, dy)
                 shrink = 1;
             end
             
-              
+            
+            
             if (block.isBomb) then        
-              
-              love.graphics.setShader();
-              love.graphics.setColor(1,1,1,1);
-              love.graphics.draw(
-                 Assets.images.bomb,
-                 tileOffsetX(x), 
-                 tileOffsetY(y),
-                 0,
-                 tileSize(1) / 111,
-                 tileSize(1) / 104
-              );
-              
-              love.graphics.setShader(Assets.shaders.gem);
-              return;
-              
+              Assets.shaders.gem:send("bomb", 1);
             end
             
             shrink = easing.outBack(shrink, 0, 1, 1);
@@ -213,7 +200,7 @@ function generateGfxContext(scale, dx, dy)
                tileOffsetY(y + ((1-shrink) * 0.5))
             );
                     
---          Assets.shaders.gem:send("bomb", 0);
+           Assets.shaders.gem:send("bomb", 0);
             
             
         end,
@@ -553,7 +540,7 @@ function Grid:draw(state, gfx)
     self:drawProgressBar(state, gfx);
     
     love.graphics.setLineWidth(state.unit);
-    love.graphics.setColor(0.1, 0.1, 0.1, 1.0);
+    love.graphics.setColor(0.0, 0.0, 0.0, 1.0);
 
     love.graphics.setScissor( gfx.tileOffsetX(1), gfx.tileOffsetY(2), gfx.tileSize(self.numCols), gfx.tileSize(self.numRows - 1))
     
@@ -1175,7 +1162,7 @@ end
 function Launcher:createProjectile()
     
     local projectile = Projectile:new({
-        position = vec2(self.position.x , self.position.y + 1.2),
+        position = vec2(self.position.x , self.position.y + 1.0),
         uuid = self.projectileUUID,
         shrink = 0.3
     });
@@ -1474,10 +1461,10 @@ function drawUI(state)
     love.graphics.setColor(1,1,1,1);
     
     local fsize = State.gfx.fontScale(2)
-    love.graphics.print("Lv " .. State.grid.levelNumber, State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1), 0, fsize, fsize);
+    love.graphics.print("Lv " .. State.grid.levelNumber, State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
     
     if (State.grid and State.grid.levelNumber ~= "multi") then
-      love.graphics.print(State.score .. " / " .. State.grid.config.scoreNeeded,  State.gfx.tileOffsetX(State.grid.numCols - 2), State.gfx.tileOffsetY(1), 0, fsize, fsize);
+      love.graphics.print(State.score .. " / " .. State.grid.config.scoreNeeded,  State.gfx.tileOffsetX(State.grid.numCols - 2), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
     end
     
 end

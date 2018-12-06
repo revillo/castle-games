@@ -172,7 +172,25 @@ float snoise(vec3 p) {
         return vec3(uv * dimensions, height);
     }
     
+    vec2 raySphereIntersect(vec3 r0, vec3 rd, vec3 s0, float sr) {
+      float a = dot(rd, rd);
+      vec3 s0_r0 = r0 - s0;
+      float b = 2.0 * dot(rd, s0_r0);
+      float c = dot(s0_r0, s0_r0) - (sr * sr);
+      
+      if (b*b - 4.0*a*c < 0.0) {
+          return vec2(-0.01, -0.01);
+      }
+      
+      float q = (-b - sqrt((b*b) - 4.0*a*c))/(2.0);
+      
+      
+      return vec2(q / a, c / q);
+    }
+    
     vec4 drawBomb(vec2 uv) {
+    
+      /*
       float radius = length(uv - vec2(0.5));
       
       if (radius > 0.5) return vec4(0.0, 0.0, 0.0, 0.0);
@@ -183,6 +201,54 @@ float snoise(vec3 p) {
       //float diffuse = abs(normal.z) * 0.5 + 0.5;
       diffuse = pow(diffuse, 20.0);
       return vec4(vec3(diffuse), 1.0);
+      */
+      
+      vec3 target = vec3(uv - vec2(0.5), 0.0) * 2.0;
+      vec3 ray0 = vec3(0.0, 0.0, -1.0);
+      
+      vec3 ray = normalize(target - ray0);
+      vec2 hit = raySphereIntersect(ray0, ray, vec3(0.0, 0.0, 1.0), 1.35);
+      
+      vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
+      
+      //fuse
+      
+      
+      if (hit.x > 0.0) {
+        
+        vec3 pos = ray0 + ray * hit.x;
+        vec3 normal = normalize(pos - vec3(0.0, 0.0, 1.0));
+        float diffuse = dot(normal, normalize(vec3(-0.2, -0.5, -2.0))) * 0.5 + 0.5;
+        diffuse = pow(diffuse, 100.0) * 0.8 + 0.2;
+        color = vec4(vec3(diffuse), 1.0);
+
+      } else {
+        
+        float dag = abs(-target.y - target.x);
+        if (dag < 0.1 && target.x > 0.0 && target.x < 0.75 && target.y > -0.75) {
+          color = vec4(vec3(1.0), 1.0);
+        }
+        
+       
+      
+      }
+      
+      //spark
+      
+      vec3 srad = target - vec3(0.75, -0.75, 0.0);
+      float maxrad = 0.4 + sin(time * 10.0) * 0.05;
+      float sdist = length(srad) / maxrad;
+      
+       if (sdist < 1.0) {
+          
+          color = mix(color, vec4(1.0, 0.6, 0.3, 1.0), 1.0 - sdist);
+          
+          if (sdist < 0.2) {
+              color = mix(color, vec4(1.0, 0.9, 0.8, 1.0), 1.0 - sdist);
+          }
+          
+      }
+      return color;
       
     }
     

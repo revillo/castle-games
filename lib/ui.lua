@@ -16,7 +16,7 @@ end
 local Button = Class:new();
 
 local DefaultBackgroundColor = {1,0,0,1}
-local DefaultTextColor = {1,1,1,0.7}
+local DefaultTextColor = {1,1,1,0.8}
 
 function Button:draw()
     
