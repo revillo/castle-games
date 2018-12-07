@@ -43,7 +43,7 @@ end
 
 --CONSTANTS--
 
-local VOLUME = 0.1;
+local VOLUME = 0.3;
 local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
 local POINT_SIZE = 1/220;
