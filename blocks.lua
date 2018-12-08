@@ -43,7 +43,7 @@ end
 
 --CONSTANTS--
 
-local VOLUME = 0.3;
+local VOLUME = 0.5;
 local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
 local POINT_SIZE = 1/220;
@@ -216,7 +216,7 @@ end
 
 
 State.gfxLeft = generateGfxContext(1, 20, -5);
-State.gfxRemote = generateGfxContext(1, 140, -5);
+State.gfxRight = generateGfxContext(1, 140, -5);
 State.gfxCenter = generateGfxContext(1, 60, -5);
 State.gfx = State.gfxCenter;
 
@@ -255,7 +255,7 @@ BlockType = {
     
     Green = {
         color = {0, 0.75, 0, 1},
-        index = 4,
+        index = 3,
         facets = 4
     },
     
@@ -267,6 +267,8 @@ BlockType = {
     }
 
 }
+
+BlockTypeArray = {BlockType.Blue, BlockType.Red, BlockType.Green, BlockType.Yellow};
 
 SpamBlockArray = {BlockType.Green, BlockType.Yellow}
 
@@ -341,6 +343,19 @@ function Grid:setLevel(n)
     if (not self.multi) then
         self:displayText("Level ".. self.levelNumber);
     end
+    
+    
+    self.minigrid = {};
+    
+    for r = 1, self.numRows do
+      self.minigrid[r] = {}
+    for c = 1, self.numCols do
+    
+      self.minigrid[r][c] = {};
+      
+    end
+    end
+    
 end
 
 function Grid:init()
@@ -532,11 +547,28 @@ function Grid:drawProgressBar(state, gfx)
 
 end
 
+function Grid:drawBorder(gfx)
+ love.graphics.setColor(1,1,1,1);
+    
+    love.graphics.setShader(Assets.shaders.border);
+    Assets.shaders.border:send("scale", {gfx.tileSize(1), gfx.tileSize(1)});
+    
+    love.graphics.draw(Assets.meshes.border,
+      gfx.tileOffsetX(1),
+      gfx.tileOffsetY(2)
+    );
+    
+    love.graphics.setShader();
+end;
 
 function Grid:draw(state, gfx)
-        
+   
+
+   
     local clr = love.graphics.setColor;
-    
+   
+    --self:drawBorder(gfx); 
+      
     self:drawProgressBar(state, gfx);
     
     love.graphics.setLineWidth(state.unit);
@@ -609,6 +641,7 @@ function Grid:draw(state, gfx)
         self.textAnim:draw();
     end
     
+   
 end
 
 function Grid:sampleBlockConfigs()
@@ -633,10 +666,24 @@ end
 
 function Grid:serialize(dataOut)
     
+    self:eachBlock(function(blk, r, c)
+    
+      self.minigrid[r][c].s = blk.status;
+      self.minigrid[r][c].c = blk.config.index;
+      
+      if (blk.gem) then
+        self.minigrid[r][c].s = 0;
+      end
+      
+    end);
+    
+    
     dataOut.numRows = self.numRows;
     dataOut.numCols = self.numCols;
     dataOut.yOffset = self.yOffset;
-    dataOut.blocks = self.blocks;
+    dataOut.minigrid = self.minigrid;
+    --dataOut.blocks = self.blocks;
+    
     dataOut.gems = self.gems;
 
 end
@@ -649,6 +696,20 @@ function Grid:deserialize(dataIn)
         self[k] = v;
     end
 
+    if (self.minigrid) then
+      self:eachBlock(function(blk, r, c) 
+
+        blk.status = self.minigrid[r][c].s;
+        blk.config = BlockTypeArray[self.minigrid[r][c].c];
+        blk.gem = nil;
+        blk.shrink = nil;
+        if (blk.config == nil) then
+          print(self.minigrid[r][c].s, self.minigrid[r][c].c);
+        end
+      
+      end);
+    end
+    
 end
 
 function Grid:triggerBlock(br, bc)
@@ -1080,6 +1141,10 @@ function Grid:pause()
     self.paused = true;
 end
 
+function Grid:unpause()
+  self.paused = false;
+end
+
 function Grid:updateRemote(state)
     
     self.textAnim:update(state.dt);
@@ -1087,6 +1152,7 @@ function Grid:updateRemote(state)
 end
 
 function Grid:update(state)
+
     self:updateEffects(state);
     self.textAnim:update(state.dt);
     
@@ -1388,7 +1454,7 @@ end
 function resize(w, h)
     State.width = w;
     State.height = h;
-    State.unit = math.min(w * POINT_SIZE, h * POINT_SIZE)
+    State.unit = h * POINT_SIZE; --math.min(w * POINT_SIZE, h * POINT_SIZE)
     
     local centerx = w / 2;
     
@@ -1402,12 +1468,18 @@ function resize(w, h)
     
     
     State.gfxCenter = generateGfxContext(1, 
-      centerx / State.gfx.pts(1) - State.gfx.tileSize(halfTiles) / State.gfx.pts(1), 
+      centerx / State.gfx.pts(1) - State.gfx.tileSize(halfTiles + 1) / State.gfx.pts(1), 
       -5
      );
      
+     State.gfxLeft = generateGfxContext(1, centerx / State.gfx.pts(1) - State.gfx.tileSize(9) / State.gfx.pts(1), -5);
+     
+     State.gfxRight = generateGfxContext(1, centerx / State.gfx.pts(1) + State.gfx.tileSize(0) / State.gfx.pts(1), -5);
+     
      if (State.gfx == oldCenter) then
       State.gfx = State.gfxCenter;
+     else 
+      State.gfx = State.gfxLeft
      end
 
 end
@@ -1450,6 +1522,7 @@ function client.receive(msg)
       
     State.score = 0;
     State.grid:setLevel("multi");
+    State.grid:unpause()
     
    end
    
@@ -1473,12 +1546,12 @@ end
 function drawMultiplayer()
 
   if (State.remoteGrid) then
-      State.remoteGrid:draw(State, State.gfxRemote);
+      State.remoteGrid:draw(State, State.gfxRight);
   end
   
   if (State.remoteLauncher) then
       setmetatable(State.remoteLauncher, Launcher);
-      State.remoteLauncher:draw(State.gfxRemote);
+      State.remoteLauncher:draw(State.gfxRight);
   end
 
 end
@@ -1514,6 +1587,7 @@ function updateMultiplayer()
     
     if (State.grid.loseFlag) then
       State.grid.loseFlag = false;
+      State.grid:pause();
       client.send({
         lost = client.id,
       });
@@ -1536,7 +1610,9 @@ function updateMultiplayer()
         --play yourself
         --local remoteState = client.share.players[client.id]
         
-        State.remoteGrid:deserialize(remoteState.gridState);
+        --State.remoteGrid:deserialize(remoteState.gridState);
+        State.remoteGrid:deserialize(stateshare);
+        
         
         if (remoteState.launcher) then
           State.remoteLauncher = remoteState.launcher;
@@ -1582,15 +1658,15 @@ function MenuMode:init()
     
         UI.Button:new {
             text = "Singleplayer",
-            x = State.gfx.tileOffsetX(0),
+            x = State.gfx.tileOffsetX(1),
             y = State.gfx.tileOffsetY(6),
-            width = State.gfx.tileSize(8),
+            width = State.gfx.tileSize(7),
             height = State.gfx.tileSize(2),
             --color = BlockType.Red.color,
             gem = {
-                c = 0,
+                c = 1,
                 r = 6,
-                w = 8,
+                w = 7,
                 h = 2,
                 shrink = 1,
                 config = BlockType.Red
@@ -1607,16 +1683,16 @@ function MenuMode:init()
         UI.Button:new {
         
             text = "Multiplayer",
-            x = State.gfx.tileOffsetX(0),
+            x = State.gfx.tileOffsetX(1),
             y = State.gfx.tileOffsetY(9),
-            width = State.gfx.tileSize(8),
+            width = State.gfx.tileSize(7),
             height = State.gfx.tileSize(2),
             --color = BlockType.Blue.color,
             size = State.gfx.fontScale(2),
             gem = {
-                c = 0,
+                c = 1,
                 r = 9,
-                w = 8,
+                w = 7,
                 h = 2,
                 shrink = 1,
                 config = BlockType.Blue
@@ -1637,10 +1713,10 @@ function MenuMode:draw()
     
     self.elems:each(function(elem)
         
-        elem.x = State.gfx.tileOffsetX(0)
+        elem.x = State.gfx.tileOffsetX(1)
         elem.y = State.gfx.tileOffsetY(elem.gem.r)
-        elem.width = State.gfx.tileSize(8)
-        elem.height = State.gfx.tileSize(1.5)
+        elem.width = State.gfx.tileSize(elem.gem.w)
+        elem.height = State.gfx.tileSize(elem.gem.h)
         elem.size = State.gfx.fontScale(3),
         
         love.graphics.setShader(Assets.shaders.gem)
@@ -1761,7 +1837,6 @@ end
 
 function PlayMode:draw()
    
-  drawUI(State);
   
   
   State.grid:draw(State, State.gfx);
@@ -1770,7 +1845,8 @@ function PlayMode:draw()
   if (self.multi and client.connected) then
     drawMultiplayer();
   end
- 
+   drawUI(State);
+
 end
 
 
@@ -1865,15 +1941,22 @@ function client.load()
                 
     
     }
-    
-    Assets.shaders = {};
-    Assets.meshes = {};
-    
     local shaders = require("shaders/gem_shaders");
+
+    Assets.shaders = {
+      
+      gem = shaders.gemShader(),
+      border = shaders.borderShader(),
+      background = shaders.backgroundShader()
+  
+    };
     
-    Assets.shaders.gem = shaders.gemShader(love);
-    Assets.meshes.quad = shaders.quadMesh(love);
-    --Assets.meshes.quad:setTexture(Assets.images.diamond);
+    Assets.meshes = {
+      
+      quad = shaders.quadMesh(),
+      border = shaders.makeBorderMesh(5, 15)
+      
+    };
     
     love.graphics.setFont(Assets.fonts.sans);
     
@@ -1899,6 +1982,15 @@ end
 function client.draw()
   
   Assets.shaders.gem:send("time", State.clock);
+  
+  
+  love.graphics.setShader(Assets.shaders.background);
+  Assets.shaders.background:send("scale", {State.width, State.height});
+  Assets.shaders.background:send("unit", State.unit);
+  Assets.shaders.background:send("time", State.clock);
+  love.graphics.draw(Assets.meshes.quad, 0, 0);
+  love.graphics.setShader();
+  
   
   love.graphics.setBlendMode("alpha")
   --love.graphics.setColor(0.8, 0.8, 0.8, 0.5);
