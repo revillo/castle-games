@@ -766,6 +766,7 @@ function Grid:triggerBlock(br, bc)
 
             if (not self.multi and tmpScore > LEVELS[self.levelNumber][4]) then
                 clearAll = true;
+                State.launcher:pause();
             end
         end
     
