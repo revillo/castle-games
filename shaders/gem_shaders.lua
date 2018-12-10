@@ -135,56 +135,6 @@ Shaders.gemShader = function()
         
     }
     
-    vec3 gem(vec2 uv, Image texture) {
-        
-        uv = squash(uv, 2.0);
-        
-        vec2 center = vec2(0.5);// + dimensions - vec2(2.0)
-        vec2 rvec = (uv - center);
-
-        if (dimensions.x > 1.5) {
-            //center = vec2(1.0) / dimensions;
-            center = vec2(1.0);
-            vec2 suv = dimensions * uv;
-            
-            if (suv.x > 1.0) {
-                center.x += min(suv.x - 1.0, dimensions.x - 2.0);
-            }
-            
-            if (suv.y > 1.0) {
-                center.y += min(suv.y - 1.0, dimensions.y - 2.0);
-            }
-            
-            rvec = suv - center;
-            
-        }
-        
-        float theta = atan(rvec.y, rvec.x) / 3.14159 + 0.5;
-        
-        theta = ((floor(theta * facets + 0.5) / facets) - 0.5) * 3.14159;
-       
-        
-        vec2 ref = vec2(cos(theta), sin(theta));
-        
-        float proj = dot(rvec, ref);
-        
-        if (dimensions.x > 1.5) {
-            proj *= 1.0;
-        } else {
-            proj *= 2.0;
-        }
-        
-        float height = 1.0 - proj;
-        
-        if (height > 0.0) {
-          height = min(0.6, height);
-          height = height / 0.6;
-          height = pow(height, 0.5);
-        }
-
-        return vec3(uv * dimensions, height);
-    }
-    
     vec2 raySphereIntersect(vec3 r0, vec3 rd, vec3 s0, float sr) {
       float a = dot(rd, rd);
       vec3 s0_r0 = r0 - s0;
@@ -247,32 +197,69 @@ Shaders.gemShader = function()
       
     }
     
-    vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords ){
-      
-        //vec2 uv = floor(texture_coords * dimensions * 24.0) / (dimensions * 24.0);
-        vec2 uv = texture_coords;
+    vec3 gem(vec2 uv) {
         
-        if (bomb > 0.0) {
-          return drawBomb(uv);
+        uv = squash(uv, 2.0);
+        
+        vec2 center = vec2(0.5);// + dimensions - vec2(2.0)
+        vec2 rvec = (uv - center);
+
+        if (dimensions.x > 1.5) {
+            //center = vec2(1.0) / dimensions;
+            center = vec2(1.0);
+            vec2 suv = dimensions * uv;
+            
+            if (suv.x > 1.0) {
+                center.x += min(suv.x - 1.0, dimensions.x - 2.0);
+            }
+            
+            if (suv.y > 1.0) {
+                center.y += min(suv.y - 1.0, dimensions.y - 2.0);
+            }
+            
+            rvec = suv - center;
+            
         }
-      
-        vec3 pos = gem(uv, texture);
         
-        vec3 nx = gem(uv + vec2(0.005, 0.0), texture);
-        vec3 ny = gem(uv + vec2(0.0, 0.005), texture);
+        float theta = atan(rvec.y, rvec.x) / 3.14159 + 0.5;
+        
+        theta = ((floor(theta * facets + 0.5) / facets) - 0.5) * 3.14159;
+       
+        
+        vec2 ref = vec2(cos(theta), sin(theta));
+        
+        float proj = dot(rvec, ref);
+        
+        if (dimensions.x > 1.5) {
+            proj *= 1.0;
+        } else {
+            proj *= 2.0;
+        }
+        
+        float height = 1.0 - proj;
+        
+        if (height > 0.0) {
+          height = min(0.6, height);
+          height = height / 0.6;
+          height = pow(height, 0.5);
+        }
+
+        return vec3(uv * dimensions, height);
+    }
+    
+ 
+    vec4 drawGem(vec2 uv, vec4 color) {
+    
+      vec3 pos = gem(uv);
+        
+        vec3 nx = gem(uv + vec2(0.005, 0.0));
+        vec3 ny = gem(uv + vec2(0.0, 0.005));
         
         vec3 vx = normalize(nx - pos);
         vec3 vy = normalize(ny - pos);
         
         vec3 normal = normalize(cross(vx, vy));
-        
-          /*
-        float nd = (30.0 - pos.z) / normal.z;
-        vec3 proj = pos + normal * nd;
-        float liq = pow(snoise(vec3(proj.xy, time * 0.4)), 5.0) - 0.5;
-          */
-        
-        
+            
         float height = pos.z;
         
         vec2 rad = uv - vec2(0.5);
@@ -285,8 +272,21 @@ Shaders.gemShader = function()
        float spec = max(0.0, pow(diff, 15.0)) * 0.7;
        vec3 fclr = vec3(diff) * color.rgb + vec3(spec);
 
-       
         return vec4(fclr, 1.0);
+    }
+    
+    vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords ){
+      
+        //vec2 uv = floor(texture_coords * dimensions * 24.0) / (dimensions * 24.0);
+        vec2 uv = texture_coords;
+        
+        if (bomb > 0.0) {
+          return drawBomb(uv);
+        } else {
+          return drawGem(uv, color);
+        }
+      
+        
     }
     
   ]], [[
@@ -318,6 +318,10 @@ vec3 random3(vec3 c) {
 	j *= .125;
 	r.y = fract(512.0*j);
 	return r-0.5;
+}
+
+float random(float v) {
+  return fract(4096.0 * sin(v));
 }
 
 const float F3 =  0.3333333;
@@ -356,32 +360,123 @@ float snoise(vec3 p) {
 	return dot(d, vec4(52.0));
 }
 
+    extern float time;
+    extern float unit;
+    extern vec2 scale;
+    
 
-float snoise2(vec3 v) {
+  vec3 gem(vec2 uv, vec2 dimensions, float facets) {
+        
+        //uv = squash(uv, 2.0);
+        
+        vec2 center = vec2(0.5);// + dimensions - vec2(2.0)
+        vec2 rvec = (uv - center);
 
-  return snoise(v * 0.5) + snoise(v * 2.0) * 0.5;
-}
+        if (dimensions.x > 1.5) {
+            //center = vec2(1.0) / dimensions;
+            center = vec2(1.0);
+            vec2 suv = dimensions * uv;
+            
+            if (suv.x > 1.0) {
+                center.x += min(suv.x - 1.0, dimensions.x - 2.0);
+            }
+            
+            if (suv.y > 1.0) {
+                center.y += min(suv.y - 1.0, dimensions.y - 2.0);
+            }
+            
+            rvec = suv - center;
+            
+        }
+        
+        float theta = atan(rvec.y, rvec.x) / 3.14159 + 0.5;
+        
+        theta = ((floor(theta * facets + 0.5) / facets) - 0.5) * 3.14159;
+               
+        vec2 ref = vec2(cos(theta), sin(theta));
+        
+        float proj = dot(rvec, ref);
+        
+        if (dimensions.x > 1.5) {
+            proj *= 1.0;
+        } else {
+            proj *= 2.0;
+        }
+        
+        float height = 1.0 - proj;
+        
+        if (height > 0.0) {
+          height = min(0.7, height);
+          height = height / 0.7;
+          height = pow(height, 0.5);
+        }
 
-float snoiz(vec2 uv, float c) {
-  return snoise(vec3(uv, c));
-}
-
-  
-  float getDist(vec2 a, vec2 b) {
-  
-    b += vec2(snoiz(b, 1.0), snoiz(b, 10.0)) * 0.8;
-  
-    return length(a-b);
-  
-  }
+        return vec3(uv * dimensions, height);
+    }
+    
+    float randNum(float seed, float min, float max) {
+      
+      return min + ceil(random(seed) * (max - min));
+    
+    }
+    
+    float lightFlip = -1.0;
+    
+    vec2 rotate(vec2 v, float a) {
+      float s = sin(a);
+      float c = cos(a);
+      mat2 m = mat2(c, -s, s, c);
+      return m * v;
+    }    
+    
+    void drawGem(vec2 uv, vec4 color, float seed, inout vec4 clr) {
+    
+        vec2 dim = vec2(
+          randNum( seed * 23.13 + 3020.34, 1.0, 3.0),
+          randNum( seed * 1823.13 + 30.78, 1.0, 3.0)
+        );
+    
+        //uv -= vec2(0.5, 0.5);
+         //uv = rotate(uv, random(seed * 393.23) * 1.0);
+        //uv += vec2(0.5, 0.5);
+        //uv *= 1.6;
+    
+        uv *= vec2(dim.y, dim.x);
+        //dim /= 2.0;
+        
+        //dim = vec2(2.0, 2.0);
+      
+        float facets = randNum(seed * 100.0 + 100.0, 2.0, 6.0);
+        vec3 pos = gem(uv, dim, facets);
+        
+        vec3 nx = gem(uv + vec2(0.005, 0.0),dim, facets);
+        vec3 ny = gem(uv + vec2(0.0, 0.005),dim, facets);
+        
+        vec3 vx = normalize(nx - pos);
+        vec3 vy = normalize(ny - pos);
+        
+        vec3 normal = normalize(cross(vx, vy));
+            
+        float height = pos.z;
+        
+        vec2 rad = uv - vec2(0.5);
+       
+        if(height < 0.0) {
+            return;
+        }
+       
+       float diff = dot(normal, normalize(vec3(0.2 * lightFlip, -0.5, 0.5))) * 0.1 + 0.9;
+       float spec = max(0.0, pow(diff, 100.0)) * 0.8;
+        clr.rgb = vec3(diff - 0.4) * color.rgb + vec3(spec);
+        clr.a = 1.0;
+        
+        //return vec4(fclr, 1.0);
+    }
+ 
   float signPow(float x, float e) {
         
         return pow(abs(x), e) * sign(x);
     
-  }
-  float getHeight(vec2 uv) {
-      return signPow(snoise(vec3(uv, 1.0)), 0.2) - 0.7;
-      //return max(0.0, signPow(snoise(vec3(uv, time * 0.0)), 0.2) - 0.6);
   }
     
     vec3 roundNormal(vec3 n, float tf, float pf) {
@@ -397,68 +492,87 @@ float snoiz(vec2 uv, float c) {
     }
     
     
-    float getCell(vec2 uv) {
-      return snoise(vec3(uv, 1.0)) * 0.25 + 1.0;
+    float getCell(float y) {
+      float d =  sin(y) * 0.2 + sin(y * 10.0) * 0.05 + 1.0;
+      d += random(y) * 0.5;
+      return d;
     }
     
-
+ 
+    float midYDist;
     void drawWall(vec2 uv, inout vec4 color, vec3 hue) {
-    
+        
        
-       float nz1 = getCell(vec2(0.0, floor(uv.y)));
-       float nz2 = getCell(vec2(0.0, ceil(uv.y)));
+        //uv.y += uv.x * cos(uv.y * 0.1 + uv.x * 0.3) * -0.3;
+        uv.y += uv.x * midYDist * 1.4;
+        
+        vec2 guv = uv * 0.8;
+
+       float nz1 = getCell(floor(uv.y));
+       float nz2 = getCell(ceil(uv.y));
        
        float t = fract(uv.y);
        
-       if (uv.x < mix(nz1, nz2, t)) {
-          color.rgb = hue * nz2 * 0.2;
+       float wallDepth =  mix(nz1, nz2, t);
+       
+       if (uv.x < wallDepth) {
+          color.rgb = hue * wallDepth * 0.2;
+          color.b += cos(uv.y) * 0.01;
        } 
+       
+       
+       //Draw Gem
+       float gemDepth = getCell(ceil(guv.y) - 0.5);
+       
+       float seed = ceil(guv.y);
+       guv.x += random(seed * 32.0 + 255.0) * 1.0 + 0.1;
+       
+        if ( random(seed) < 1.0 * hue.r && guv.x < 1.0 && guv.x > 0.0) {
+           
+          hue *= 0.4;
+          hue.g += random(seed * 1000.0) * 0.6;
+          hue.b += random(seed * 500.0) * 0.6;
+          hue.r += random(seed * 200.0) * 0.6;
+          
+          //hue = normalize(hue) * wallDepth * 0.5;
+          
+          //if (wallDepth < gemDepth)
+            drawGem(fract(guv), vec4(hue, 1.0), seed, color);
+          
+        }
+        
     
     }
-    extern float time;
-    extern float unit;
-    extern vec2 scale;
-    
+
     void drawWalls(vec2 uv, inout vec4 clr) {
-      drawWall(uv * vec2(1.0, 4.0) + vec2(-3.0, time), clr, vec3(0.15, 0.15, 0.17));
-      drawWall(uv * vec2(1.0, 2.0) + vec2(-1.5, time), clr, vec3(0.3, 0.3, 0.35));
-      drawWall(uv * vec2(1.0, 1.0) + vec2( 0.0, time), clr, vec3(0.6, 0.6, 0.7));
+      
+      vec3 wallColor = vec3(0.6, 0.6, 0.7);
+    
+      drawWall(uv * vec2(4.0, 4.0) + vec2(-10.0, time * 2.0), clr, wallColor * 0.25);
+      drawWall(uv * vec2(2.0, 2.0) + vec2(-3.0, time * 1.5), clr, wallColor * 0.5);
+      drawWall(uv * vec2(1.0, 1.0) + vec2( 0.0, time), clr, wallColor);
     }
     
 
     vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords )
     {
-
-        //vec3 dx = normalize(dFdx(pos));
-        //vec3 dy = normalize(dFdy(pos));
-        //vec3 normal = normalize(cross(dy, dx));
-        
-        //float diffuse = dot(normal, normalize(vec3(-0.2, -0.5, 1.0))) * 0.5 + 0.5;
-        
-        //float diffuse = 1.0;
-        
-        //return vec4(vec3(diffuse) * vec3(0.61, 0.51, 0.7), 1.0);
-        
-        //float liq = snoise(vec3(texture_coords + vec2(0.0, time), 10.0));
-        
-        
         vec4 clr = vec4(0.0, 0.0, 0.0, 1.0);
        
+       midYDist = screen_coords.y / scale.y - 0.5;
         
         vec2 uv = screen_coords;
         float uvscale = 0.05 / unit;
         uv *= uvscale;     
+        uv.y += 10.0;
         drawWalls(uv, clr);
         
+        lightFlip = 1.0;
         uv = vec2(scale.x, screen_coords.y) - vec2(screen_coords.x, 0.0);
         uv *= uvscale;
-        uv.y += 100.0;
+        uv.y += 200.0;
         drawWalls(uv, clr);
 
-        
-        
         return clr;
-        
         
     }
   

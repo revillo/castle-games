@@ -35,10 +35,30 @@ easing.inOutExpo = function(t,b,c,d)
   end
 end
 
+easing.inOutQuad = function(t, b, c, d)
+  t = t / d * 2
+  if t < 1 then
+    return c / 2 * math.pow(t, 4) + b
+  else
+    t = t - 2
+    return -c / 2 * (math.pow(t, 4) - 2) + b
+  end
+end
+
 easing.outBack = function(t, b, c, d, s)
   if not s then s = 1.70158 end
   t = t / d - 1
   return c * (t * t * ((s + 1) * t + s) + 1) + b
+end
+
+math.sign = function(x) 
+  
+  if (x >= 0.0) then 
+    return 1 
+  else 
+    return -1 
+  end
+  
 end
 
 --CONSTANTS--
@@ -70,26 +90,37 @@ State = {
 Assets = {}
 Class = {}
 
+Themes = {
+  RedBlue = 2,
+  RGB = 3,
+  XMAS = 4,
+  PurpleYellow = 5,
+  PinkCyan = 6,
+  Fire = 7,
+  HunterCream = 8,
+  Fire3 = 9
+}
+
 local LEVELS = {
     --colors | columns | scrollSpeed | scoreNeeded
     --{  2,        7,        0.15,          100000 },
-    {  2,        5,        0.15,          1800 },
-    {  2,        6,        0.17,          4500 },
-    {  2,        7,        0.18,          9000 },
-    {  2,        8,        0.19,         14000 },
-    {  2,        9,        0.22,         19000 }, 
+    {  Themes.RedBlue,        5,        0.15,          1800 },
+    {  Themes.RedBlue,        6,        0.17,          4500 },
+    {  Themes.PurpleYellow,        7,        0.18,          9000 },
+    {  Themes.PurpleYellow,        8,        0.19,         14000 },
+    {  Themes.HunterCream,        9,        0.22,         19000 }, 
     
-    {  2,        10,        0.23,        24000 }, 
-    {  2,        11,        0.24,        34000 }, 
-    {  2,        5,        0.3,          39000 }, 
-    {  2,        7,       0.33,          44000 }, 
-    {  2,        8,       0.34,          49000 }, 
+    {  Themes.HunterCream,        10,        0.23,        24000 }, 
+    {  Themes.RedBlue,        11,        0.24,        34000 }, 
+    {  Themes.Fire,        5,        0.3,          39000 }, 
+    {  Themes.Fire,        7,       0.33,          44000 }, 
+    {  Themes.PinkCyan,        8,       0.34,          49000 }, 
     
-    {  2,        10,       0.34,         54000 }, 
-    {  3,        5,       0.14,          59000 },
-    {  3,        6,       0.15,          64000 },
-    {  3,        7,       0.16,          70000 },
-    {  3,        8,       0.16,          76000 },
+    {  Themes.PinkCyan,        10,       0.34,         54000 }, 
+    {  Themes.RGB,        5,       0.14,          59000 },
+    {  Themes.RGB,        6,       0.15,          64000 },
+    {  Themes.XMAS,        7,       0.16,          70000 },
+    {  Themes.Fire3,        8,       0.16,          76000 },
     
     multi = {  2, 7,  0.18, -1 }
 }
@@ -237,38 +268,74 @@ end
 
 Grid = Class:new();
 
+
+
 BlockType = {
     
     Blue = {
-        color = {0.0, 0.3, 0.95, 1.0},
-        --color = {0, 0.5, 1.0, 1.0},
-        index = 1,
-        facets = 4
+        color = {0.0, 0.3, 0.95, 1.0}
     },
     
     Red = {
-        color = {0.95, 0.1, 0.1, 1},
-        --color = {1, 0, 0, 1},
-        index = 2,
-        facets = 4
+        color = {0.95, 0.1, 0.1, 1}
     },
     
     Green = {
-        color = {0, 0.75, 0, 1},
-        index = 3,
-        facets = 4
+        color = {0, 0.6, 0, 1}
     },
     
-    
     Yellow = {
-        color = {1, 1, 0.2, 1},
-        index = 4,
-        facets = 4
+        color = {0.8, 0.7, 0.2, 1}
+    },
+    
+    Cyan = {
+      color = {0.0, 0.5, 0.8, 1}
+    },
+    
+    Purple = {
+      color = {0.6, 0.0, 0.7, 1.0}
+    },
+    
+    Pink = {
+      color = {0.8, 0.0, 0.5, 1.0}
+    },
+    
+    FireRed = {
+      color = {1.0, 0.15, 0.0, 1.0}
+    },
+    
+    FireYellow = {
+      color = {1.0, 1.0, 0.0, 1.0}
+    },
+    
+    Cream = {
+      color = {0.98, 0.9, 0.6, 1.0}
+    },
+    
+    Hunter = {
+      color = {0.2, 0.5, 0.15, 1.0}
+    },
+    
+    White = {
+      color = {0.8, 0.8, 0.8, 1.0}
+    },
+    
+    Obsidian = {
+      color = {0.2, 0.2, 0.4, 1.0}
     }
-
 }
 
-BlockTypeArray = {BlockType.Blue, BlockType.Red, BlockType.Green, BlockType.Yellow};
+BlockTypeArray = {};
+
+do 
+  local bi = 1;
+  for k,v in pairs(BlockType) do
+    v.index = bi;
+    v.facets = 4;
+    BlockTypeArray[bi] = v;
+    bi = bi + 1;
+  end
+end
 
 SpamBlockArray = {BlockType.Green, BlockType.Yellow}
 
@@ -288,6 +355,50 @@ function Grid:displayText(text)
 
 end
 
+local ColorConfigs = {
+  [Themes.RedBlue] = {
+     blockConfigs = {BlockType.Blue, BlockType.Red};
+     bombChance = 0.25;
+  },
+  
+  [Themes.XMAS] = {
+    blockConfigs = {BlockType.Red, BlockType.White, BlockType.Green};
+    bombChance = 0.5;
+  },
+  
+  
+  [Themes.Fire3] = {
+    blockConfigs = {BlockType.FireRed, BlockType.FireYellow, BlockType.Obsidian};
+    bombChance = 0.55;
+  },
+  
+   [Themes.RGB] = {
+    blockConfigs = {BlockType.Blue, BlockType.Red, BlockType.Green};
+    bombChance = 0.5;
+  },
+  
+  
+  [Themes.PurpleYellow] = {
+    blockConfigs = {BlockType.Purple, BlockType.Yellow};
+    bombChance = 0.25;
+  },
+  
+  [Themes.PinkCyan] = {
+    blockConfigs = {BlockType.Pink, BlockType.Cyan};
+    bombChance = 0.25;
+  },
+  
+  [Themes.Fire] = {
+    blockConfigs = {BlockType.FireYellow, BlockType.FireRed};
+    bombChance = 0.25;
+  },
+  
+  [Themes.HunterCream] = {
+    blockConfigs= {BlockType.Hunter, BlockType.Cream},
+    bombChance = 0.25;
+  }
+}
+
 function Grid:setLevel(n)
     if (type(n) == "number") then
         n = n % #LEVELS;
@@ -297,23 +408,14 @@ function Grid:setLevel(n)
     end
     
     local level = LEVELS[n];
-    local config = {};
     
     self.levelNumber = n;
     self.danger = 0;
-    config.bombChance = 0.25;
-
-    config.maxRows = 15;
     
-    if (level[1] == 2) then
-        config.blockConfigs = {BlockType.Blue, BlockType.Red};
-        config.bombChance = 0.25;
-    elseif(level[1] == 3) then
-        config.blockConfigs = {BlockType.Blue, BlockType.Red, BlockType.Green};
-        config.bombChance = 0.5;
-    elseif(level[1] == 4) then
-        config.blockConfigs = {BlockType.Blue, BlockType.Red, BlockType.Green, BlockType.Yellow};
-    end
+    local config = ColorConfigs[level[1]];
+ 
+    
+    config.maxRows = 15;
     
     config.scrollSpeed = level[3];
     config.scoreNeeded = level[4];
@@ -339,6 +441,7 @@ function Grid:setLevel(n)
     self:dropOrphans();
     
     resize(State.width, State.height);
+    
     
     if (not self.multi) then
         self:displayText("Level ".. self.levelNumber);
@@ -1122,16 +1225,6 @@ function Grid:checkLose()
         self.didLose = false;
         self.loseFlag = true;
         
-        if (self.levelNumber ~= "multi") then
-            Assets.sounds.lose:play();
-            local prevLevel = LEVELS[self.levelNumber - 1];
-            if (prevLevel ~= nil) then
-                State.score = prevLevel[4];
-            else
-                State.score = 0;
-            end
-            self:setLevel(self.levelNumber);
-        end
     end      
     
     return didLose;
@@ -1810,25 +1903,47 @@ function PlayMode:update(dt)
 
     State.dt = dt;
     State.clock = State.clock + dt;
+    if (State.clock > 10000) then
+      State.clock = 0;
+    end
+    
     State.launcher:update(State);
     
-    State.grid:update(State);
     
     State.launcher:rotate(
         (State.keyboard.a or State.keyboard.left or 0) -
         (State.keyboard.d or State.keyboard.right or 0)
     ); 
     
-    if (not self.multi and State.score > State.grid.config.scoreNeeded) then
-        State.grid:pause();
+    local grid = State.grid;
+    grid:update(State);
+
+    if (not self.multi and State.score > grid.config.scoreNeeded) then
+        grid:pause();
         State.launcher:pause();
         
-        if (not State.grid.animating or State.grid.animating <= 0) then
-            State.grid.paused = false;
+        if (not grid.animating or grid.animating <= 0) then
+            grid.paused = false;
             State.launcher.paused = false;
+            State.bgScroll = 1;
             goNextLevel();
         end
         
+    end
+    
+    if (not self.multi and grid.loseFlag) then
+      grid.loseFlag = false;
+      if (grid.levelNumber ~= "multi") then
+            Assets.sounds.lose:play();
+            local prevLevel = LEVELS[grid.levelNumber - 1];
+            if (prevLevel ~= nil) then
+                State.score = prevLevel[4];
+            else
+                State.score = 0;
+            end
+            State.bgScroll = -1;
+            grid:setLevel(grid.levelNumber);
+        end
     end
     
     if (self.multi and client.connected) then  
@@ -1875,7 +1990,7 @@ function PlayMode:keypressed(k)
         goNextLevel();
     end
     
-    if (k == "p") then
+    if (k == "p" or k == "escape") then
         State.paused = not State.paused;
     end
     
@@ -1963,6 +2078,8 @@ function client.load()
     
     State.score = 0;
     State.clock = 0;
+    State.bgTime = 1000;
+    State.bgScroll = 0;
     
     State.grid = Grid:new();
     State.launcher = Launcher:new{};
@@ -1975,6 +2092,24 @@ function client.load()
 end
 
 function client.update(dt)
+
+
+  if (State.bgScroll ~= 0.0) then
+    local sign = math.sign(State.bgScroll);
+    State.bgScroll = State.bgScroll - sign * dt; 
+    
+    if (math.sign(State.bgScroll) ~= sign) then
+      State.bgScroll = 0;
+    end
+    local scrollDiff = sign * easing.inOutExpo(math.abs(State.bgScroll), 0, 1, 1);
+    
+    State.bgTime = State.bgTime + scrollDiff;
+  end
+   
+    
+    if (State.bgTime < 0) then
+      State.bgTime = 0;
+    end
     
     State.mode:update(dt);
 
@@ -1988,7 +2123,7 @@ function client.draw()
   love.graphics.setShader(Assets.shaders.background);
   Assets.shaders.background:send("scale", {State.width, State.height});
   Assets.shaders.background:send("unit", State.unit);
-  Assets.shaders.background:send("time", State.clock);
+  Assets.shaders.background:send("time", State.clock + State.bgTime);
   love.graphics.draw(Assets.meshes.quad, 0, 0);
   love.graphics.setShader();
   
@@ -1998,6 +2133,12 @@ function client.draw()
   --love.graphics.draw(Assets.images.bg, 0, 0, 0, State.width / 1200, State.height / 900)
   
   State.mode:draw();
+  
+  
+  if (State.paused) then
+    love.graphics.setColor(0.0, 0.0, 0.0, 0.5);
+    love.graphics.rectangle("fill", 0, 0, State.width, State.height);
+  end
   
 end
 
