@@ -92,37 +92,39 @@ Class = {}
 
 Themes = {
   RedBlue = 2,
+  GoldSilver = 1,
   RGB = 3,
   XMAS = 4,
   PurpleYellow = 5,
   PinkCyan = 6,
   Fire = 7,
   HunterCream = 8,
-  Fire3 = 9
+  Fire3 = 9,
+  Olympic = 10
 }
 
 local LEVELS = {
     --colors | columns | scrollSpeed | scoreNeeded
     --{  2,        7,        0.15,          100000 },
     {  Themes.RedBlue,        5,        0.15,          1800 },
-    {  Themes.RedBlue,        6,        0.17,          4500 },
+    {  Themes.PinkCyan,        6,        0.17,          4500 },
     {  Themes.PurpleYellow,        7,        0.18,          9000 },
-    {  Themes.PurpleYellow,        8,        0.19,         14000 },
+    {  Themes.Fire,        8,        0.19,         14000 },
     {  Themes.HunterCream,        9,        0.22,         19000 }, 
     
-    {  Themes.HunterCream,        10,        0.23,        24000 }, 
-    {  Themes.RedBlue,        11,        0.24,        34000 }, 
-    {  Themes.Fire,        5,        0.3,          39000 }, 
+    {  Themes.RedBlue,        10,        0.23,        24000 }, 
+    {  Themes.PinkCyan,        11,        0.24,        34000 }, 
+    {  Themes.PurpleYellow,        5,        0.3,          39000 }, 
     {  Themes.Fire,        7,       0.33,          44000 }, 
-    {  Themes.PinkCyan,        8,       0.34,          49000 }, 
+    {  Themes.HunterCream,        8,       0.34,          49000 }, 
     
-    {  Themes.PinkCyan,        10,       0.34,         54000 }, 
+    {  Themes.GoldSilver,        10,       0.34,         54000 }, 
     {  Themes.RGB,        5,       0.14,          59000 },
-    {  Themes.RGB,        6,       0.15,          64000 },
-    {  Themes.XMAS,        7,       0.16,          70000 },
-    {  Themes.Fire3,        8,       0.16,          76000 },
+    {  Themes.XMAS,        6,       0.15,          64000 },
+    {  Themes.Fire3,        7,       0.16,          70000 },
+    {  Themes.Olympic,        8,       0.16,          76000 },
     
-    multi = {  2, 7,  0.18, -1 }
+    multi = {  Themes.RedBlue, 7,  0.18, -1 }
 }
 
 
@@ -208,8 +210,7 @@ function generateGfxContext(scale, dx, dy)
             elseif (shrink > 1.0) then
                 shrink = 1;
             end
-            
-            
+              
             
             if (block.isBomb) then        
               Assets.shaders.gem:send("bomb", 1);
@@ -322,6 +323,18 @@ BlockType = {
     
     Obsidian = {
       color = {0.2, 0.2, 0.4, 1.0}
+    },
+    
+    Gold = {
+      color = {0.85,0.6,0.2,1.0}
+    },
+    
+    Silver = {
+      color = {0.65, 0.65, 0.85}
+    },
+    
+    Bronze = {
+      color = {0.2, 0.1, 0.0, 1.0}
     }
 }
 
@@ -357,8 +370,18 @@ end
 
 local ColorConfigs = {
   [Themes.RedBlue] = {
-     blockConfigs = {BlockType.Blue, BlockType.Red};
+     blockConfigs = {BlockType.Red, BlockType.Blue};
      bombChance = 0.25;
+  },
+  
+  [Themes.GoldSilver] = {
+     blockConfigs = {BlockType.Gold, BlockType.Silver};
+     bombChance = 0.25;
+  },
+  
+  [Themes.Olympic] = {
+    blockConfigs = {BlockType.Gold, BlockType.Silver, BlockType.Bronze};
+    bombChance = 0.5;
   },
   
   [Themes.XMAS] = {
@@ -1904,7 +1927,7 @@ function PlayMode:update(dt)
     State.dt = dt;
     State.clock = State.clock + dt;
     if (State.clock > 10000) then
-      State.clock = 0;
+      State.clock = 1000;
     end
     
     State.launcher:update(State);
