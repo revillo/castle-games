@@ -2049,7 +2049,7 @@ function client.load()
       glass = Sound:new("sounds/glass2.wav",  15),
       lose = Sound:new("sounds/lose.wav"),
       win = Sound:new("sounds/win.wav"),
-      music = love.audio.newSource("sounds/music.mp3", "static")
+      music = love.audio.newSource("sounds/music.mp3", "stream")
       --bomb = Sound:new("sounds/bomb.wav", 2)
     }  
     
