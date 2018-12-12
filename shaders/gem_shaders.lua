@@ -167,7 +167,7 @@ Shaders.gemShader = function()
       
       if (glowRad < 1.0) {
         float glowPulse = 0.5 + sin(time * 10.0) * 0.2;
-        color = vec4(vec3(1.0, 0.6, 0.3), (1.0 - glowRad) * 5.0 * glowPulse);
+        color = vec4(vec3(0.7, 0.7, 0.9), (1.0 - glowRad) * 5.0 * glowPulse);
       }
       
       vec2 hit = raySphereIntersect(ray0, ray, vec3(0.0, 0.0, 1.0), 1.3);
@@ -374,6 +374,7 @@ float snoise(vec3 p) {
     extern float unit;
     extern vec2 scale;
     
+    extern float flash;
 
   vec3 gem(vec2 uv, vec2 dimensions, float facets) {
         
@@ -525,6 +526,8 @@ float snoise(vec3 p) {
        
        float wallDepth =  mix(nz1, nz2, t);
        
+
+       
        if (uv.x < wallDepth) {
           color.rgb = hue * wallDepth * 0.2;
           color.b += cos(uv.y) * 0.01;
@@ -544,10 +547,7 @@ float snoise(vec3 p) {
           hue.b += random(seed * 500.0) * 0.6;
           hue.r += random(seed * 200.0) * 0.6;
           
-          //hue = normalize(hue) * wallDepth * 0.5;
-          
-          //if (wallDepth < gemDepth)
-            drawGem(fract(guv), vec4(hue, 1.0), seed, color);
+          drawGem(fract(guv), vec4(hue, 1.0), seed, color);
           
         }
         
@@ -557,7 +557,7 @@ float snoise(vec3 p) {
     void drawWalls(vec2 uv, inout vec4 clr) {
       
       vec3 wallColor = vec3(0.6, 0.6, 0.7);
-    
+
       drawWall(uv * vec2(4.0, 4.0) + vec2(-10.0, time * 2.0), clr, wallColor * 0.25);
       drawWall(uv * vec2(2.0, 2.0) + vec2(-3.0, time * 1.5), clr, wallColor * 0.5);
       drawWall(uv * vec2(1.0, 1.0) + vec2( 0.0, time), clr, wallColor);
@@ -582,7 +582,7 @@ float snoise(vec3 p) {
         uv.y += 200.0;
         drawWalls(uv, clr);
 
-        return clr;
+        return mix(clr, vec4(1.0,0.3, 0.1, 1.0), flash * 0.2);
         
     }
   

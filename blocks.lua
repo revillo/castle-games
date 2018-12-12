@@ -63,7 +63,7 @@ end
 
 --CONSTANTS--
 
-local VOLUME = 0.4;
+local VOLUME = 0.5;
 local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
 local POINT_SIZE = 1/220;
@@ -643,7 +643,7 @@ function Grid:drawProgressBar(state, gfx)
     dangerFlash = math.abs(0.5 * dangerFlash * math.cos(State.clock * 6.0));
 
     self.dangerFlash = dangerFlash;
-
+   
     local clr = love.graphics.setColor;
     local w = 0.25;
     local o = 0.5;
@@ -1277,6 +1277,13 @@ function Grid:update(state)
         return
     end;
     
+    if (self.musicCounter and self.musicCounter > 0) then
+      self.musicCounter = self.musicCounter - state.dt;
+      if (self.musicCounter <= 0) then
+        Assets.sounds.music:play();
+      end
+    end
+    
     if (self:checkLose()) then
     
     else
@@ -1845,8 +1852,10 @@ function MenuMode:draw()
         
     end);
     
+    love.graphics.setColor(1.0, 1.0, 1.0, 1.0);
+    love.graphics.draw(Assets.images.gypsum, State.gfx.tileOffsetX(2.1),State.gfx.tileOffsetY(3), 0, State.gfx.pts(1) * 0.15, State.gfx.pts(1) * 0.15); 
     
-    
+    --love.graphics.print("GYPSUM", State.gfx.tileOffsetX(2.5),State.gfx.tileOffsetY(3), 0, State.gfx.fontScale(3), State.gfx.fontScale(3));
 end
 
 function MenuMode:update(dt)
@@ -1905,6 +1914,8 @@ function PlayMode:initMultiplayer()
 end
 
 function PlayMode:initSingleplayer()
+
+    Assets.sounds.music:play();
     
     State.grid.numCols = LEVELS[1][2];
     resize(State.width, State.height);
@@ -1958,6 +1969,8 @@ function PlayMode:update(dt)
       grid.loseFlag = false;
       if (grid.levelNumber ~= "multi") then
             Assets.sounds.lose:play();
+            Assets.sounds.music:stop();
+            grid.musicCounter = 3.0;
             local prevLevel = LEVELS[grid.levelNumber - 1];
             if (prevLevel ~= nil) then
                 State.score = prevLevel[4];
@@ -2049,13 +2062,12 @@ function client.load()
       glass = Sound:new("sounds/glass2.wav",  15),
       lose = Sound:new("sounds/lose.wav"),
       win = Sound:new("sounds/win.wav"),
-      music = love.audio.newSource("sounds/music.mp3", "stream")
+      music = love.audio.newSource("sounds/music.mp3", "static")
       --bomb = Sound:new("sounds/bomb.wav", 2)
     }  
     
     Assets.sounds.music:setVolume(VOLUME * 3.0);
     Assets.sounds.music:setLooping(true);
-    Assets.sounds.music:play();
     
     for k,v in pairs(Assets.sounds) do
         v:setVolume(VOLUME);
@@ -2066,21 +2078,23 @@ function client.load()
     --Assets.sounds.bomb:setVolume(VOLUME * 0);
     
     Assets.images = {
-      gem =  love.graphics.newImage("images/gem.png"),
-      sheen =  love.graphics.newImage("images/sheen.png"),
+      --gem =  love.graphics.newImage("images/gem.png"),
+      --sheen =  love.graphics.newImage("images/sheen.png"),
       shard =  love.graphics.newImage("images/shard.png"),
-      bg = love.graphics.newImage("images/bg.png"),
-      bomb = love.graphics.newImage("images/bomb.png")
+      gypsum = love.graphics.newImage("images/gypsum.png"),
+      --bg = love.graphics.newImage("images/bg.png"),
+      --bomb = love.graphics.newImage("images/bomb.png")
       --diamond = love.graphics.newImage("images/diamond.png")
     }
     
     Assets.fonts = {
         
+        --[[
         pixel = love.graphics.newImageFont("images/imagefont.png",
                 " abcdefghijklmnopqrstuvwxyz" ..
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0" ..
                 "123456789.,!?-+/():;%&`'*#=[]\""),
-                
+         ]]    
         sans = love.graphics.newFont("fonts/OpenSans-ExtraBold.ttf", 30);
                 
     
@@ -2149,9 +2163,12 @@ function client.draw()
   
   
   love.graphics.setShader(Assets.shaders.background);
+  
   Assets.shaders.background:send("scale", {State.width, State.height});
   Assets.shaders.background:send("unit", State.unit);
   Assets.shaders.background:send("time", State.clock + State.bgTime);
+  Assets.shaders.background:send("flash", State.grid.dangerFlash or 0);
+  
   love.graphics.draw(Assets.meshes.quad, 0, 0);
   love.graphics.setShader();
   
