@@ -155,12 +155,23 @@ Shaders.gemShader = function()
     
       vec3 target = vec3(uv - vec2(0.5), 0.0) * 2.0;
       vec3 ray0 = vec3(0.0, 0.0, -1.0);
-      
+      float maxrad = 0.4 + sin(time * 10.0) * 0.05;
+
       vec3 ray = normalize(target - ray0);
-      vec2 hit = raySphereIntersect(ray0, ray, vec3(0.0, 0.0, 1.0), 1.35);
       
-      vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
+      vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
       
+      vec2 glowUV = (squash(uv, 1.5) - vec2(0.5)) * 2.0;
+      
+      float glowRad = length(glowUV);
+      
+      if (glowRad < 1.0) {
+        float glowPulse = 0.5 + sin(time * 10.0) * 0.2;
+        color = vec4(vec3(1.0, 0.6, 0.3), (1.0 - glowRad) * 5.0 * glowPulse);
+      }
+      
+      vec2 hit = raySphereIntersect(ray0, ray, vec3(0.0, 0.0, 1.0), 1.3);
+
       //fuse
       if (hit.x > 0.0) {
         
@@ -181,7 +192,6 @@ Shaders.gemShader = function()
       
       //spark
       vec3 srad = target - vec3(0.75, -0.75, 0.0);
-      float maxrad = 0.4 + sin(time * 10.0) * 0.05;
       float sdist = length(srad) / maxrad;
       
        if (sdist < 1.0) {

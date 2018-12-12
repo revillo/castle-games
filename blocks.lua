@@ -63,7 +63,7 @@ end
 
 --CONSTANTS--
 
-local VOLUME = 0.5;
+local VOLUME = 0.4;
 local PNG_SIZE = 256;
 local RELOAD_DURATION = 0.5;
 local POINT_SIZE = 1/220;
@@ -302,7 +302,7 @@ BlockType = {
     },
     
     FireRed = {
-      color = {1.0, 0.15, 0.0, 1.0}
+      color = {0.85, 0.13, 0.0, 1.0}
     },
     
     FireYellow = {
@@ -2049,8 +2049,13 @@ function client.load()
       glass = Sound:new("sounds/glass2.wav",  15),
       lose = Sound:new("sounds/lose.wav"),
       win = Sound:new("sounds/win.wav"),
+      music = love.audio.newSource("sounds/music.mp3", "static")
       --bomb = Sound:new("sounds/bomb.wav", 2)
     }  
+    
+    Assets.sounds.music:setVolume(VOLUME * 3.0);
+    Assets.sounds.music:setLooping(true);
+    Assets.sounds.music:play();
     
     for k,v in pairs(Assets.sounds) do
         v:setVolume(VOLUME);
@@ -2159,8 +2164,13 @@ function client.draw()
   
   
   if (State.paused) then
+    Assets.sounds.music:setVolume(VOLUME * 0.0);
+
     love.graphics.setColor(0.0, 0.0, 0.0, 0.5);
     love.graphics.rectangle("fill", 0, 0, State.width, State.height);
+  else
+    Assets.sounds.music:setVolume(VOLUME * 3.0);
+
   end
   
 end
