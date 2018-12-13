@@ -1680,11 +1680,65 @@ function drawMultiplayer()
 
 end
 
+SaveData = {
+  level=1,
+  score=0,
+  bestScore=0
+};
+
+function loadSaveData()
+  
+  local file = love.filesystem.read("GypsumSave.txt");
+  
+  if (file == nil) then
+    return
+  end
+  
+  function splitString(inputstr, sep)
+      if sep == nil then
+              sep = "%s"
+      end
+      local t={} ; i=1
+      for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
+              t[i] = str
+              i = i + 1
+      end
+      return t
+  end
+  
+  local fields = splitString(file, ";");
+  
+  
+  for k,v in pairs(fields) do
+    
+    local parts = splitString(v, "=");
+    SaveData[parts[1]] = tonumber(parts[2]);
+    
+  end
+  
+  
+  State.score = SaveData.score;
+end
+
+function writeSaveData()
+
+
+  SaveData.level = State.grid.levelNumber;
+  SaveData.score = State.score;
+  SaveData.bestScore = math.max(SaveData.bestScore, State.score);
+
+  local file = love.filesystem.write("GypsumSave.txt", "level="..SaveData.level..";score="..SaveData.score..";best_score="..SaveData.bestScore);	
+
+  
+end
+
 function goNextLevel()
    State.grid:nextLevel();
-    resize(State.width, State.height);
-    State.launcher:reset();
-    Assets.sounds.win:play();
+   resize(State.width, State.height);
+   State.launcher:reset();
+   Assets.sounds.win:play();
+   
+   writeSaveData();
 end
 
 local cnt = 0;
@@ -1917,12 +1971,14 @@ function PlayMode:initSingleplayer()
 
     Assets.sounds.music:play();
     
-    State.grid.numCols = LEVELS[1][2];
+    loadSaveData();
+    
+    State.grid.numCols = LEVELS[SaveData.level][2];
     resize(State.width, State.height);
 
     State.gfx = State.gfxCenter;
     State.play.multi = false; 
-    State.grid:setLevel(1);
+    State.grid:setLevel(SaveData.level);
     State.gfx = State.gfxCenter;
 
 end
