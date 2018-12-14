@@ -22,8 +22,11 @@ function Button:draw()
     
     --love.graphics.setColor(self.backgroundColor or DefaultBackgroundColor);
     --love.graphics.rectangle("fill", self.x, self.y, self.width, self.height);  
+    love.graphics.setColor(0,0,0,0.5);
+    love.graphics.print(self.text, self.x + self.size * 30 - 1, self.y + self.size * 16 - 1, 0, self.size, self.size);
+    
     love.graphics.setColor(self.textColor or DefaultTextColor)
-    love.graphics.print(self.text, self.x + self.size * 30, self.y + self.size * 15, 0, self.size, self.size);
+    love.graphics.print(self.text, self.x + self.size * 30, self.y + self.size * 16, 0, self.size, self.size);
 
 end
 

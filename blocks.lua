@@ -7,12 +7,12 @@ if CASTLE_PREFETCH then
         'lib/vec2.lua',
         'lib/queue.lua',
         'lib/ui.lua',
-        'lib/sounds.lua',
-        'shaders/gem_shaders',
-        'lib/ui',
-        'lib/TextAnimator',
-        'share/cs',
-        'share/state',
+        'lib/sound.lua',
+        'shaders/gem_shaders.lua',
+        'lib/ui.lua',
+        'lib/TextAnimator.lua',
+        'share/cs.lua',
+        'share/state.lua',
        'sounds/whoosh.wav',
       'sounds/chip2.wav',
       'sounds/bounce.wav',
@@ -457,6 +457,13 @@ function Grid:setLevel(n)
         if (LEVELS[n] == nil) then
           n = 1;
         end
+        
+        local prevLevel = LEVELS[n-1];
+        
+        if (prevLevel and State.score < prevLevel[4]) then
+          State.score = prevLevel[4];
+        end
+        
         self.multi = false;
     else
         self.multi = true;
@@ -662,7 +669,11 @@ function Grid:getPercentFinished()
       base = prevLevel[4];
   end
   
-  return (State.score - base) / (LEVELS[self.levelNumber][4] - base);
+  local p = (State.score - base) / (LEVELS[self.levelNumber][4] - base);
+  
+  p = math.max(p, 0.0);
+  p = math.min(p, 1.0);
+  return p;
   
 end
 
@@ -693,7 +704,7 @@ function Grid:drawProgressBar(state, gfx)
 
     gfx.rect("fill", 
         gfx.tileOffsetX(o), gfx.tileOffsetY(2), 
-        gfx.tileSize(w), gfx.tileSize(self.config.maxRows - 1) * math.min(1.0, self:getPercentFinished())
+        gfx.tileSize(w), gfx.tileSize(self.config.maxRows - 1) * self:getPercentFinished()
     );
     
     love.graphics.setColor(0.5 + dangerFlash, 0.5 - dangerFlash * 0.5, 0.5 - dangerFlash, 0.5 + dangerFlash);
@@ -1722,7 +1733,7 @@ SaveData = {
 
 function loadSaveData()
   
-  local file = love.filesystem.read("GypsumSave.txt");
+  local file = love.filesystem.read("GemzenSave.txt");
   
   if (file == nil) then
     return
@@ -1761,7 +1772,7 @@ function writeSaveData()
   SaveData.score = State.score;
   SaveData.bestScore = math.max(SaveData.bestScore, State.score);
 
-  local file = love.filesystem.write("GypsumSave.txt", "level="..SaveData.level..";score="..SaveData.score..";best_score="..SaveData.bestScore);	
+  local file = love.filesystem.write("GemzenSave.txt", "level="..SaveData.level..";score="..SaveData.score..";best_score="..SaveData.bestScore);	
 
   
 end
@@ -1879,19 +1890,21 @@ function GameMode:mousepressed(x,y) end
 local MenuMode = GameMode:new();
 
 function MenuMode:init()
+    
+    local buttonShift = 1;
 
     self.elems = Array:new {
     
         UI.Button:new {
             text = "Continue",
             x = State.gfx.tileOffsetX(1),
-            y = State.gfx.tileOffsetY(6),
+            y = State.gfx.tileOffsetY(6 + buttonShift),
             width = State.gfx.tileSize(7),
             height = State.gfx.tileSize(2),
             --color = BlockType.Red.color,
             gem = {
                 c = 1,
-                r = 6,
+                r = 6 + buttonShift,
                 w = 7,
                 h = 2,
                 shrink = 1,
@@ -1911,14 +1924,14 @@ function MenuMode:init()
         
             text = "New Game",
             x = State.gfx.tileOffsetX(1),
-            y = State.gfx.tileOffsetY(9),
+            y = State.gfx.tileOffsetY(9 + buttonShift),
             width = State.gfx.tileSize(7),
             height = State.gfx.tileSize(2),
             --color = BlockType.Blue.color,
             size = State.gfx.fontScale(2),
             gem = {
                 c = 1,
-                r = 9,
+                r = 9 + buttonShift,
                 w = 7,
                 h = 2,
                 shrink = 1,
@@ -1936,14 +1949,14 @@ function MenuMode:init()
         
             text = "Multiplayer",
             x = State.gfx.tileOffsetX(1),
-            y = State.gfx.tileOffsetY(12),
+            y = State.gfx.tileOffsetY(12 + buttonShift),
             width = State.gfx.tileSize(7),
             height = State.gfx.tileSize(2),
             --color = BlockType.Blue.color,
             size = State.gfx.fontScale(2),
             gem = {
                 c = 1,
-                r = 12,
+                r = 12 + buttonShift,
                 w = 7,
                 h = 2,
                 shrink = 1,
@@ -1980,9 +1993,12 @@ function MenuMode:draw()
     end);
     
     love.graphics.setColor(1.0, 1.0, 1.0, 1.0);
-    love.graphics.draw(Assets.images.gypsum, State.gfx.tileOffsetX(2.1),State.gfx.tileOffsetY(3), 0, State.gfx.pts(1) * 0.15, State.gfx.pts(1) * 0.15); 
+    --love.graphics.draw(Assets.images.gypsum, State.gfx.tileOffsetX(2.1),State.gfx.tileOffsetY(3), 0, State.gfx.pts(1) * 0.15, State.gfx.pts(1) * 0.15); 
+        love.graphics.setFont(Assets.fonts.megrim);
+
+    love.graphics.print("GemZen", State.gfx.tileOffsetX(0.22),State.gfx.tileOffsetY(2), 0, State.gfx.fontScale(3), State.gfx.fontScale(3));
     
-    --love.graphics.print("GYPSUM", State.gfx.tileOffsetX(2.5),State.gfx.tileOffsetY(3), 0, State.gfx.fontScale(3), State.gfx.fontScale(3));
+    love.graphics.setFont(Assets.fonts.sans);
 end
 
 function MenuMode:update(dt)
@@ -2036,7 +2052,9 @@ function CreditMode:mousepressed()
     State.bgTime = 1000;
     State.bgScroll = 0;
     State.grid.textAnim = TextAnimator:new();
-
+  
+    writeSaveData();
+    
     State.mode = State.menu;
   end
 
@@ -2044,8 +2062,10 @@ end
 
 function CreditMode:draw()
 
-  love.graphics.print("You Win!", State.gfx.tileOffsetX(2.3),State.gfx.tileOffsetY(3), 0, State.gfx.fontScale(4), State.gfx.fontScale(4));
-
+  love.graphics.setFont(Assets.fonts.megrim);
+  love.graphics.print("You Win!", State.gfx.tileOffsetX(-0.2),State.gfx.tileOffsetY(3), 0, State.gfx.fontScale(3), State.gfx.fontScale(3));
+  love.graphics.setFont(Assets.fonts.sans);
+  
   love.graphics.print("by Oliver Castaneda", State.gfx.tileOffsetX(2),State.gfx.tileOffsetY(7), 0, State.gfx.fontScale(2), State.gfx.fontScale(2));
 
   
@@ -2281,7 +2301,8 @@ function client.load()
                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0" ..
                 "123456789.,!?-+/():;%&`'*#=[]\""),
          ]]    
-        sans = love.graphics.newFont("fonts/OpenSans-ExtraBold.ttf", 30);
+        sans = love.graphics.newFont("fonts/OpenSans-ExtraBold.ttf", 30),
+        megrim = love.graphics.newFont("fonts/Megrim.ttf", 100)
                 
     
     }
