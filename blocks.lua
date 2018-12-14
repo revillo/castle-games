@@ -2271,6 +2271,15 @@ function client.load()
     
     --love.graphics.setBackgroundColor( 0.05, 0.05, 0.05 )
 
+    local cacher = love.audio.newSource("sounds/whoosh.wav", "static");
+    cacher = love.audio.newSource("sounds/chip2.wav", "static");
+    cacher = love.audio.newSource("sounds/bounce.wav", "static");
+    cacher = love.audio.newSource("sounds/ping.wav", "static");
+    cacher = love.audio.newSource("sounds/glass2.wav", "static");
+    cacher = love.audio.newSource("sounds/lose.wav", "static");
+    cacher = love.audio.newSource("sounds/win.wav", "static");
+    
+    
     Assets.sounds = {
       zap =     Sound:new("sounds/whoosh.wav", 3),
       chip = Sound:new("sounds/chip2.wav",  15),
