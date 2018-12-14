@@ -38,6 +38,7 @@ local randFloat = function(lo, hi)
     return lo + (math.random() * (hi-lo));
 end
 
+local Shaders = require("shaders/gem_shaders");
 local Array = require("lib/array")
 local Queue = require("lib/queue")
 local Sound = require("lib/sound")
@@ -872,10 +873,6 @@ function Grid:deserialize(dataIn)
         blk.config = BlockTypeArray[self.minigrid[r][c].c];
         blk.gem = nil;
         blk.shrink = nil;
-        if (blk.config == nil) then
-          print(self.minigrid[r][c].s, self.minigrid[r][c].c);
-        end
-      
       end);
     end
     
@@ -1975,6 +1972,7 @@ function MenuMode:init()
 end
 
 function MenuMode:draw()
+    
     self.elems:each(function(elem)
         
         elem.x = State.gfx.tileOffsetX(1)
@@ -2227,30 +2225,30 @@ function PlayMode:keypressed(k)
         State.launcher:fire();
     end
     
-    --Debugging
-    if (k == "o") then
-        goNextLevel();
-    end
-    
-    if (k == "p" or k == "escape") then
+   if (k == "p" or k == "escape") then
         State.paused = not State.paused;
     end
     
-    if (k == "g") then
-        print(State.grid.numRows);
-        State.grid:eachBlockInRow(State.grid.numRows, function(block)
-            print(block.status);
-        end);
-    end
+    --Debugging
     
-    if (k == "v") then
-        State.launcher:spam(1);
+    --[[
+    
+    if (k == "o") then
+        goNextLevel();
     end
     
     if (k == "l") then
       State.grid.didLose = true;
     end
-
+    
+    if (k == "f") then
+     State.grid.levelNumber = 1;
+     State.grid.numCols = 7;
+      resize(State.width, State.height);
+        State.mode = State.credits;
+    end
+    
+    ]]
 
 end
 
@@ -2306,21 +2304,20 @@ function client.load()
                 
     
     }
-    local shaders = require("shaders/gem_shaders");
 
     Assets.shaders = {
+    
+    --  border = shaders.borderShader(),
+      background = Shaders.backgroundShader(),
+      ruby = Shaders.rubyShader(),
+      gem = Shaders.gemShader()
       
-      gem = shaders.gemShader(),
-      border = shaders.borderShader(),
-      background = shaders.backgroundShader(),
-      ruby = shaders.rubyShader();
-  
     };
     
     Assets.meshes = {
       
-      quad = shaders.quadMesh(),
-      border = shaders.makeBorderMesh(5, 15)
+      quad = Shaders.quadMesh()
+      --border = Shaders.makeBorderMesh(5, 15)
       
     };
     
@@ -2369,8 +2366,7 @@ end
 function client.draw()
   
   Assets.shaders.gem:send("time", State.clock);
-  
-  
+ 
   love.graphics.setShader(Assets.shaders.background);
   
   Assets.shaders.background:send("scale", {State.width, State.height});
@@ -2383,9 +2379,6 @@ function client.draw()
   
   
   love.graphics.setBlendMode("alpha")
-  --love.graphics.setColor(0.8, 0.8, 0.8, 0.5);
-  --love.graphics.draw(Assets.images.bg, 0, 0, 0, State.width / 1200, State.height / 900)
-  
   State.mode:draw();
   
   
@@ -2396,7 +2389,6 @@ function client.draw()
     love.graphics.rectangle("fill", 0, 0, State.width, State.height);
   else
     Assets.sounds.music:setVolume(VOLUME * 3.0);
-
   end
   
 end
@@ -2415,16 +2407,7 @@ function love.mousepressed( x, y, button, istouch, presses )
 end
 
 function love.keypressed(k)
-    
-    --[[
-    if (k == "f") then
-     State.grid.levelNumber = 1;
-     State.grid.numCols = 7;
-      resize(State.width, State.height);
-        State.mode = State.credits;
-    end
-    ]]
-    
+
     State.keyboard[k] = 1;
     
     State.mode:keypressed(k)
