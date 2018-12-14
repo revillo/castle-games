@@ -2,6 +2,7 @@
 --castle://localhost:4000/blocks.lua
 --Scripts--
 
+--[[
 if CASTLE_PREFETCH then
     CASTLE_PREFETCH({
         'lib/vec2.lua',
@@ -26,6 +27,7 @@ if CASTLE_PREFETCH then
      'fonts/OpenSans-ExtraBold.ttf'
     })
 end
+]]
 
 local cs = require("share/cs");
 
