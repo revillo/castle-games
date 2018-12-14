@@ -1,6 +1,32 @@
 --http://localhost:4000/blocks.lua
 --castle://localhost:4000/blocks.lua
 --Scripts--
+
+if CASTLE_PREFETCH then
+    CASTLE_PREFETCH({
+        'lib/vec2.lua',
+        'lib/queue.lua',
+        'lib/ui.lua',
+        'lib/sounds.lua',
+        'shaders/gem_shaders',
+        'lib/ui',
+        'lib/TextAnimator',
+        'share/cs',
+        'share/state',
+       'sounds/whoosh.wav',
+      'sounds/chip2.wav',
+      'sounds/bounce.wav',
+      'sounds/ping.wav',
+      'sounds/glass2.wav',
+      'sounds/lose.wav',
+      'sounds/win.wav',
+     'sounds/music.mp3',
+     'images/shard.png',
+     'images/gypsum.png',
+     'fonts/OpenSans-ExtraBold.ttf'
+    })
+end
+
 local Vec2 = require("lib/vec2")
 
 
@@ -106,26 +132,30 @@ Themes = {
 local LEVELS = {
     --colors | columns | scrollSpeed | scoreNeeded
     --{  2,        7,        0.15,          100000 },
-    {  Themes.RedBlue,        5,        0.15,          1800 },
-    {  Themes.PinkCyan,        6,        0.17,          4500 },
-    {  Themes.PurpleYellow,        7,        0.18,          9000 },
-    {  Themes.Fire,        8,        0.19,         14000 },
-    {  Themes.HunterCream,        9,        0.22,         19000 }, 
+    {  Themes.RedBlue,        5,        0.15,            1800 },
+    {  Themes.PinkCyan,        6,        0.17,           5000 },
+    {  Themes.PurpleYellow,        7,        0.18,       9000 },
+    {  Themes.Fire,        8,        0.19,               14000 },
+    {  Themes.HunterCream,        9,        0.22,        19000 }, 
     
-    {  Themes.RedBlue,        10,        0.23,        24000 }, 
-    {  Themes.PinkCyan,        11,        0.24,        34000 }, 
-    {  Themes.PurpleYellow,        5,        0.3,          39000 }, 
-    {  Themes.Fire,        7,       0.33,          44000 }, 
-    {  Themes.HunterCream,        8,       0.34,          49000 }, 
+    {  Themes.RedBlue,        10,        0.23,           24000 }, 
+    {  Themes.PinkCyan,        11,        0.24,          34000 }, 
+    {  Themes.PurpleYellow,        5,        0.3,        39000 }, 
+    {  Themes.Fire,        7,       0.33,                44000 }, 
+    {  Themes.HunterCream,        8,       0.34,         49000 }, 
     
     {  Themes.GoldSilver,        10,       0.34,         54000 }, 
-    {  Themes.RGB,        5,       0.14,          59000 },
-    {  Themes.XMAS,        6,       0.15,          64000 },
-    {  Themes.Fire3,        7,       0.16,          70000 },
-    {  Themes.Olympic,        8,       0.16,          76000 },
-    
-    multi = {  Themes.RedBlue, 7,  0.18, -1 }
+    {  Themes.RGB,        5,       0.14,                 59000 },
+    {  Themes.XMAS,        6,       0.15,                64000 },
+    {  Themes.Fire3,        7,       0.16,               70000 },
+    {  Themes.Olympic,        8,       0.16,             76000 }  
 }
+
+LEVELS.multi = {  Themes.RedBlue, 7,  0.18, -1 };
+
+for i = 3,15 do
+  LEVELS[i][4] = LEVELS[i-1][4] + 7000; 
+end
 
 
 function generateGfxContext(scale, dx, dy) 
@@ -424,7 +454,9 @@ local ColorConfigs = {
 
 function Grid:setLevel(n)
     if (type(n) == "number") then
-        n = n % #LEVELS;
+        if (LEVELS[n] == nil) then
+          n = 1;
+        end
         self.multi = false;
     else
         self.multi = true;
@@ -1222,10 +1254,12 @@ function Grid:dropOrphans()
           
             block.status = 0;
             if (block.gem) then
-                block.gem.shrink = maxShrink;
+                block.gem.shrink = maxShrink + 2;
                 block.shrink = nil;
+                block.gem.willBurst = true;
             else
-                block.shrink = maxShrink + 1;
+                block.shrink = maxShrink + 2;
+                block.willBurst = true;
             end
         end
     end);
@@ -1733,6 +1767,20 @@ function writeSaveData()
 end
 
 function goNextLevel()
+  
+    if (LEVELS[State.grid.levelNumber+1] == nil) then
+      State.mode = State.credits;
+      
+      State.grid.levelNumber = 1;
+      State.grid.numCols = 8;
+      resize(State.width, State.height);
+      SaveData.score = 0;
+      
+      writeSaveData();
+      
+      return;
+    end
+
    State.grid:nextLevel();
    resize(State.width, State.height);
    State.launcher:reset();
@@ -1835,7 +1883,7 @@ function MenuMode:init()
     self.elems = Array:new {
     
         UI.Button:new {
-            text = "Singleplayer",
+            text = "Continue",
             x = State.gfx.tileOffsetX(1),
             y = State.gfx.tileOffsetY(6),
             width = State.gfx.tileSize(7),
@@ -1851,7 +1899,33 @@ function MenuMode:init()
             },
             size = State.gfx.fontScale(2),
             action = function() 
-                State.play:initSingleplayer();
+                State.play:initSingleplayer(false);
+                State.launcher:reset();
+                State.mode = State.play;
+                Assets.sounds.glass:play()
+            end
+        },
+        
+        
+        UI.Button:new {
+        
+            text = "New Game",
+            x = State.gfx.tileOffsetX(1),
+            y = State.gfx.tileOffsetY(9),
+            width = State.gfx.tileSize(7),
+            height = State.gfx.tileSize(2),
+            --color = BlockType.Blue.color,
+            size = State.gfx.fontScale(2),
+            gem = {
+                c = 1,
+                r = 9,
+                w = 7,
+                h = 2,
+                shrink = 1,
+                config = BlockType.Green
+            },
+            action = function() 
+                State.play:initSingleplayer(true); 
                 State.launcher:reset();
                 State.mode = State.play;
                 Assets.sounds.glass:play()
@@ -1862,14 +1936,14 @@ function MenuMode:init()
         
             text = "Multiplayer",
             x = State.gfx.tileOffsetX(1),
-            y = State.gfx.tileOffsetY(9),
+            y = State.gfx.tileOffsetY(12),
             width = State.gfx.tileSize(7),
             height = State.gfx.tileSize(2),
             --color = BlockType.Blue.color,
             size = State.gfx.fontScale(2),
             gem = {
                 c = 1,
-                r = 9,
+                r = 12,
                 w = 7,
                 h = 2,
                 shrink = 1,
@@ -1888,7 +1962,6 @@ function MenuMode:init()
 end
 
 function MenuMode:draw()
-    
     self.elems:each(function(elem)
         
         elem.x = State.gfx.tileOffsetX(1)
@@ -1945,6 +2018,52 @@ function MenuMode:mousepressed(x, y)
 
 end
 
+local CreditMode = GameMode:new()
+
+function CreditMode:update(dt)
+  
+  State.clock = State.clock + dt;
+  State.bgTime = State.bgTime - math.max(dt * 50.0, (State.bgTime + State.clock) * dt);
+  
+end
+
+function CreditMode:mousepressed()
+  
+  if (State.clock + State.bgTime < 0.0) then
+    
+    State.score = 0;
+    State.clock = 0;
+    State.bgTime = 1000;
+    State.bgScroll = 0;
+    State.grid.textAnim = TextAnimator:new();
+
+    State.mode = State.menu;
+  end
+
+end
+
+function CreditMode:draw()
+
+  love.graphics.print("You Win!", State.gfx.tileOffsetX(2.3),State.gfx.tileOffsetY(3), 0, State.gfx.fontScale(4), State.gfx.fontScale(4));
+
+  love.graphics.print("by Oliver Castaneda", State.gfx.tileOffsetX(2),State.gfx.tileOffsetY(7), 0, State.gfx.fontScale(2), State.gfx.fontScale(2));
+
+  
+  love.graphics.setColor(1.0, 1.0, 1.0, 1.0);
+  love.graphics.setShader(Assets.shaders.ruby);
+  Assets.shaders.ruby:send("scale", {State.gfx.tileSize(5), State.gfx.tileSize(5)});
+  Assets.shaders.ruby:send("time", State.clock);
+  
+  love.graphics.draw(Assets.meshes.quad, 
+    State.gfx.tileOffsetX(2),
+    State.gfx.tileOffsetY(9)
+  );
+  
+  love.graphics.setShader();
+    
+  
+end
+
 
 local PlayMode = GameMode:new()
 
@@ -1967,11 +2086,18 @@ function PlayMode:initMultiplayer()
     State.gfx = State.gfxLeft;
 end
 
-function PlayMode:initSingleplayer()
+function PlayMode:initSingleplayer(reset)
 
     Assets.sounds.music:play();
     
     loadSaveData();
+    
+    if (reset) then
+      SaveData.level = 1;
+      SaveData.score = 0;
+      State.score = 0;
+    end
+    
     
     State.grid.numCols = LEVELS[SaveData.level][2];
     resize(State.width, State.height);
@@ -1981,6 +2107,10 @@ function PlayMode:initSingleplayer()
     State.grid:setLevel(SaveData.level);
     State.gfx = State.gfxCenter;
 
+    if (reset) then
+      writeSaveData();
+    end
+    
 end
 
 function PlayMode:update(dt)
@@ -2045,8 +2175,6 @@ end
 
 function PlayMode:draw()
    
-  
-  
   State.grid:draw(State, State.gfx);
   State.launcher:draw(State.gfx);
  
@@ -2059,6 +2187,8 @@ end
 
 
 function PlayMode:mousemoved(x, y)
+
+  if (State.paused) then return end;
   
   local tx, ty = State.gfx.pixToOffset(x, y);
   State.launcher:setTarget(tx - 0.5, ty - 0.5);
@@ -2161,7 +2291,8 @@ function client.load()
       
       gem = shaders.gemShader(),
       border = shaders.borderShader(),
-      background = shaders.backgroundShader()
+      background = shaders.backgroundShader(),
+      ruby = shaders.rubyShader();
   
     };
     
@@ -2184,6 +2315,7 @@ function client.load()
     
     State.menu = MenuMode:new();
     State.play = PlayMode:new();
+    State.credits = CreditMode:new();
     
     State.mode = State.menu;
    
@@ -2202,12 +2334,12 @@ function client.update(dt)
     local scrollDiff = sign * easing.inOutExpo(math.abs(State.bgScroll), 0, 1, 1);
     
     State.bgTime = State.bgTime + scrollDiff;
-  end
-   
     
     if (State.bgTime < 0) then
       State.bgTime = 0;
     end
+  end
+   
     
     State.mode:update(dt);
 
@@ -2262,6 +2394,15 @@ function love.mousepressed( x, y, button, istouch, presses )
 end
 
 function love.keypressed(k)
+    
+    --[[
+    if (k == "f") then
+     State.grid.levelNumber = 1;
+     State.grid.numCols = 7;
+      resize(State.width, State.height);
+        State.mode = State.credits;
+    end
+    ]]
     
     State.keyboard[k] = 1;
     

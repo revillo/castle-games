@@ -567,6 +567,13 @@ float snoise(vec3 p) {
     vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords )
     {
         vec4 clr = vec4(0.0, 0.0, 0.0, 1.0);
+        
+        if (time < 0.0) {
+          vec4 skyc = mix(vec4(0.15, 0.4, 0.8, 1.0), vec4(0.3, 0.6, 0.8, 1.0), texture_coords.y);
+          vec4 white = vec4(1.0, 1.0, 1.0, 1.0);
+          
+          return mix(white, skyc, clamp(-time/50.0, 0.0,  1.0));
+        }
        
        midYDist = screen_coords.y / scale.y - 0.5;
         
@@ -602,6 +609,153 @@ float snoise(vec3 p) {
   ]]);
 end
 
+Shaders.rubyShader = function() 
+ return love.graphics.newShader([[
+
+  extern float time;
+ 
+ 
+    
+float cone(in vec3 p, in vec3 c) {
+    vec2 q = vec2(length(p.xz), p.y);
+    float d1 = -p.y-c.z;
+    float d2 = max(dot(q, c.xy), p.y);
+    return length(max(vec2(d1, d2),0.0)) + min(max(d1, d2), 0.0);
+}
+
+float box_sdf(vec3 center, vec3 dimensions, vec3 pos) {
+
+	vec3 dist = abs(pos - center) - dimensions;
+    return max(max(dist.x, dist.y), dist.z);
+}
+
+float gem_sdf(in vec3 ray)
+{
+    float heightFactor = 1.5;
+    vec3 coneBase = vec3(0.35, 0.4, 1.64 * heightFactor);
+    vec3 coneBase2 = vec3(0.4, 0.3, 2.5 * heightFactor);
+
+
+    // your magical distance function
+    float cone1 = cone(vec3(ray.x, ray.y - coneBase.z , ray.z), coneBase);
+    float cone2 = cone(vec3(ray.x, -ray.y - coneBase2.z, ray.z), coneBase2);
+    return max(ray.y - coneBase.z * 0.3, min(cone1, cone2));
+    
+
+}
+
+
+    vec2 rotate(vec2 v, float a) {
+      float s = sin(a);
+      float c = cos(a);
+      mat2 m = mat2(c, -s, s, c);
+      return m * v;
+    }    
+
+float sdf(vec3 pos) {
+    
+    //return box_sdf(vec3(0.0), vec3(1.0, 1.0, 1.0), pos);
+    
+    return gem_sdf(pos);
+}
+
+vec3 roundNormal(vec3 n, float tf, float pf) {
+    //return floor(n * 5.0) / 5.0;
+    
+     //float phi = asin(n.y) / 3.14159 + 0.5;
+    float phi = asin(n.y);
+    float theta = atan(n.z, n.x) / 3.14159 + 0.5;
+
+    theta = ((floor(theta * tf + 0.5) / tf) - 0.5) * 3.14159;
+    //phi = ((floor(phi * pf + 0.5) / pf) - 0.5) * 3.14159;
+
+    return vec3(cos(theta) * cos(phi), sin(phi), sin(theta) * cos(phi));
+}
+
+vec3 normal_sdf(vec3 pos) {
+
+  const vec3 v1 = vec3( 1.0,-1.0,-1.0);
+  const vec3 v2 = vec3(-1.0,-1.0, 1.0);
+  const vec3 v3 = vec3(-1.0, 1.0,-1.0);
+  const vec3 v4 = vec3( 1.0, 1.0, 1.0);
+    
+  const float eps = 0.02;
+
+  return normalize( v1 * sdf( pos + v1*eps ) +
+                    v2 * sdf( pos + v2*eps ) +
+                    v3 * sdf( pos + v3*eps ) +
+                    v4 * sdf( pos + v4*eps ) );
+
+}
+ 
+ 
+    vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords )
+    {
+
+      vec2 uv = texture_coords;
+
+      uv *= 2.0;
+      uv -= vec2(1.0, 1.0);
+      uv.y *= -1.0;
+
+      vec3 ray = normalize(vec3(uv, 1.0));
+      
+      float dist = 0.0;
+      
+      const int maxSteps = 40;
+      int currentStep = 0;
+      
+      vec3 pos;
+      float currentDistance;
+      
+      int hit = 0;
+      
+      float t = time;
+      
+      vec3 spos = vec3(sin(t), 0.0, -cos(t)) * 4.0;
+      ray.xz = rotate(ray.xz, -t);
+      
+
+      while(currentStep < maxSteps)
+      {
+          pos = ray * dist + spos;
+          currentDistance = sdf(pos);
+          
+          dist += max(0.0, currentDistance);
+          
+          hit += int(currentDistance < 0.01);
+          ++currentStep;
+      }
+      
+      vec3 light =  normalize(vec3(sin(t- 1.5), 0.0, -cos(t - 1.5)) * 4.0 + vec3(0.0, 10.0, 0.0));
+    
+      vec3 normal = roundNormal(normal_sdf(pos), 8.0 , 6.0);
+      float diffuse = (dot(normal, light) * 0.5 + 0.5);
+              
+      vec3 eye = -normalize(spos - pos);
+
+      float specular = pow(max(0.0, dot(reflect(eye, normal), light)), 3.0) * 1.0;
+
+      
+      return vec4(vec3(1.0,0.1,0.0) * diffuse + vec3(0.9, 0.9, 0.9) * specular, 1.0) * float(hit > 0.0);
+    }
+  
+  ]] , [[
+  
+    extern vec2 scale;
+
+    attribute float VertexShade;
+    
+    vec4 position(mat4 transform_projection, vec4 vertex_position)
+    {
+        vec4 vp = vertex_position;
+        vp.xy *= scale;
+        return transform_projection * vp;
+    }
+  
+  ]]);
+
+end
 
 Shaders.borderShader = function()
 
