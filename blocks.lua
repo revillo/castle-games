@@ -28,6 +28,15 @@ if CASTLE_PREFETCH then
     })
 end
 ]]
+local cs = require("share/cs");
+
+client = cs.client;
+if USE_CASTLE_CONFIG then
+    client.useCastleConfig()
+else
+    client.enabled = true
+    client.start('127.0.0.1:22122')
+end
 
 local Vec2 = require("lib/vec2")
 
@@ -48,7 +57,7 @@ local TextAnimator = require("lib/TextAnimator")
 --local easing = require("https://raw.githubusercontent.com/EmmanuelOga/easing/master/lib/easing.lua")
 local easing = {};
 --local cs = require("https://raw.githubusercontent.com/expo/share.lua/master/cs.lua");
-local cs = require("share/cs");
+
 
 
 easing.inOutExpo = function(t,b,c,d)
@@ -1655,9 +1664,6 @@ local spamState = {
 
 }
 
-client = cs.client;
-client.enabled = true;
-
 
 function client.connect() -- Called on connect from server
     print("Connected")
@@ -2078,15 +2084,14 @@ function PlayMode:initMultiplayer()
     
     State.remoteLauncher = nil;
     
-    
+--[[    
     if USE_CASTLE_CONFIG then
         client.useCastleConfig()
     else
         --client.enabled = true
         client.start('127.0.0.1:22122')
     end
-    
-
+    ]]
 
     self.multi = true;
     
