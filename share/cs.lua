@@ -23,12 +23,28 @@ do
     local idToPeer = {}
     local nextId = 1
 
+    function server.useCastleConfig()
+        if castle then
+            function castle.startServer(port)
+                server.enabled = true
+                server.start(port)
+            end
+        end
+    end
+
+    local useCompression = true
+    function server.disableCompression()
+        useCompression = false
+    end
+
     function server.start(port)
         host = enet.host_create('*:' .. tostring(port or '22122'))
         if host == nil then
             error("couldn't start server -- is port in use?")
         end
-        --host:compress_with_range_coder()
+        if useCompression then
+            host:compress_with_range_coder()
+        end
         server.started = true
     end
 
@@ -39,6 +55,10 @@ do
         else
             assert(idToPeer[id], 'no connected client with this `id`'):send(data)
         end
+    end
+
+    function server.kick(id)
+        assert(idToPeer[id], 'no connected client with this `id`'):disconnect()
     end
 
     function server.getPing(id)
@@ -156,9 +176,25 @@ do
     local host
     local peer
 
+    function client.useCastleConfig()
+        if castle then
+            function castle.startClient(address)
+                client.enabled = true
+                client.start(address)
+            end
+        end
+    end
+
+    local useCompression = true
+    function client.disableCompression()
+        useCompression = false
+    end
+
     function client.start(address)
         host = enet.host_create()
-        --host:compress_with_range_coder()
+        if useCompression then
+            host:compress_with_range_coder()
+        end
         host:connect(address or '127.0.0.1:22122')
     end
 
@@ -168,24 +204,23 @@ do
         }))
     end
 
+    function client.kick()
+        assert(peer, 'client is not connected'):disconnect()
+        host:flush()
+    end
+
     function client.getPing()
         return assert(peer, 'client is not connected'):round_trip_time()
     end
 
-    
     function client.preupdate(dt)
         -- Process network events
-        local eventCounter = 0
-        local eventTime = love.timer.getTime();
-        
-        
         if host then
             while true do
+                if not host then break end
                 local event = host:service(0)
                 if not event then break end
-                
-                eventCounter = eventCounter + 1;
-                
+
                 -- Server connected?
                 if event.type == 'connect' then
                     -- Ignore this, wait till we receive id (see below)
@@ -196,6 +231,16 @@ do
                     if client.disconnect then
                         client.disconnect()
                     end
+                    client.connected = false
+                    client.id = nil
+                    for k in pairs(share) do
+                        share[k] = nil
+                    end
+                    for k in pairs(home) do
+                        home[k] = nil
+                    end
+                    host = nil
+                    peer = nil
                 end
 
                 -- Received a request?
@@ -248,14 +293,12 @@ do
                         peer:send(marshal.encode({ exact = home:__diff(0, true) }))
                     end
                 end
-            end -- end while
-                        
+            end
         end
     end
 
     function client.postupdate(dt)
         -- Send state updates to server
-        local eventTimer = 0;
         if peer then
             local diff = home:__diff(0)
             if diff ~= nil then -- `nil` if nothing changed
@@ -309,27 +352,6 @@ local loveCbs = {
     joystickremoved = { client = true },
 }
 
-local throttle = function(fn, delta)
-  
-   local tick = love.timer.getTime() - delta;
-  return function(...) 
-    local now = love.timer.getTime();
-    if (now > tick + delta) then
-      fn(...)
-      tick = now
-    end
-  end
- 
-end
-
-local throttleDelta = 1/60.0;
-
-
-server.preupdate = throttle(server.preupdate, throttleDelta);
-server.postupdate = throttle(server.postupdate, throttleDelta);
-client.preupdate = throttle(client.preupdate, throttleDelta);
-client.postupdate = throttle(client.postupdate, throttleDelta);
-
 for cbName, where in pairs(loveCbs) do
     love[cbName] = function(...)
         if where.server and server.enabled then
@@ -354,6 +376,9 @@ for cbName, where in pairs(loveCbs) do
             end
             if cbName == 'update' then
                 client.postupdate(...)
+            end
+            if cbName == 'quit' then
+                client.kick()
             end
         end
     end

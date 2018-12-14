@@ -2,6 +2,7 @@
 --castle://localhost:4000/blocks.lua
 --Scripts--
 
+--[[
 if CASTLE_PREFETCH then
     CASTLE_PREFETCH({
         'lib/vec2.lua',
@@ -26,6 +27,7 @@ if CASTLE_PREFETCH then
      'fonts/OpenSans-ExtraBold.ttf'
     })
 end
+]]
 
 local Vec2 = require("lib/vec2")
 
@@ -1656,6 +1658,7 @@ local spamState = {
 client = cs.client;
 client.enabled = true;
 
+
 function client.connect() -- Called on connect from server
     print("Connected")
 end
@@ -2075,11 +2078,15 @@ function PlayMode:initMultiplayer()
     
     State.remoteLauncher = nil;
     
-    local url = '207.254.45.246:22122';
     
-    client.start(url);
+    if USE_CASTLE_CONFIG then
+        client.useCastleConfig()
+    else
+        --client.enabled = true
+        client.start('127.0.0.1:22122')
+    end
+    
 
-    print("Connecting to"..url);
 
     self.multi = true;
     
@@ -2318,7 +2325,7 @@ function client.load()
     State.credits = CreditMode:new();
     
     State.mode = State.menu;
-   
+       
 end
 
 function client.update(dt)
