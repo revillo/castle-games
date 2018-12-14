@@ -1,6 +1,8 @@
+local foo = require
+
 USE_CASTLE_CONFIG = true
 if CASTLE_SERVER then
-  require('blocks_server.lua')
+  foo('blocks_server.lua')
 else
-  require('blocks.lua')
+  foo('blocks.lua')
 end
