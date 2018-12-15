@@ -32,7 +32,12 @@ end
 local cs = require("share/cs");
 
 client = cs.client;
-client.enabled = true
+if USE_CASTLE_CONFIG then
+    client.useCastleConfig()
+else
+    client.enabled = true
+    client.start('192.168.10.103:22122')
+end
 
 local Vec2 = require("lib/vec2")
 
@@ -2098,11 +2103,14 @@ function PlayMode:initMultiplayer()
     
     State.remoteLauncher = nil;
     
+--[[    
     if USE_CASTLE_CONFIG then
         client.useCastleConfig()
     else
-        client.start('192.168.10.103:22122')
+        --client.enabled = true
+        client.start('127.0.0.1:22122')
     end
+    ]]
 
     self.multi = true;
     
