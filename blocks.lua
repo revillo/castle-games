@@ -379,6 +379,10 @@ BlockType = {
     
     Bronze = {
       color = {0.2, 0.1, 0.0, 1.0}
+    },
+    
+    Garbage = {
+      color = {0.25, 0.18, 0.16, 1.0}
     }
 }
 
@@ -394,19 +398,20 @@ do
   end
 end
 
-SpamBlockArray = {BlockType.Green, BlockType.Yellow}
+SpamBlockArray = {BlockType.Garbage}
 
 function Grid:nextLevel()
     
     self:setLevel( (self.levelNumber or 0) + 1 );
 end
 
-function Grid:displayText(text) 
+function Grid:displayText(text, yoff) 
+  yoff = yoff or 0;
 
   self.textAnim:addAnimation(text, nil, {
         duration = 2,
         x = State.gfx.tileOffsetX(self.numCols * 0.5),
-        y = State.gfx.tileOffsetY(self.numRows * 0.5),
+        y = State.gfx.tileOffsetY(self.numRows * 0.5 + yoff),
         size = State.gfx.fontScale(2)
     });
 
@@ -692,15 +697,23 @@ function Grid:getPercentFinished()
 end
 
 function Grid:drawProgressBar(state, gfx)
-    
-    if (self.levelNumber == "multi") then return end
-    
+   
     local dangerThresh = 0.55;
     local dangerFlash = math.max((self.danger - dangerThresh) * 2.0, 0.0); 
     dangerFlash = math.abs(0.5 * dangerFlash * math.cos(State.clock * 6.0));
 
     self.dangerFlash = dangerFlash;
-   
+    
+    if (self.levelNumber == "multi") then return end
+    
+    --[[
+    local dangerThresh = 0.55;
+    local dangerFlash = math.max((self.danger - dangerThresh) * 2.0, 0.0); 
+    dangerFlash = math.abs(0.5 * dangerFlash * math.cos(State.clock * 6.0));
+
+    self.dangerFlash = dangerFlash;
+    ]]
+    
     local clr = love.graphics.setColor;
     local w = 0.25;
     local o = 0.5;
@@ -1394,7 +1407,7 @@ function Launcher:reset()
     self.bombTracker = 1;
     self.spamAmt = 0;
     self.projectiles = {};
-    self.position = vec2(State.grid.numCols / 2 + 0.5, State.grid.config.maxRows + 1.2);
+    self.position = vec2(State.grid.numCols / 2 + 0.5,    State.grid.config.maxRows + 1.2);
     self.projectileUUID = 1;
     
     self.nextProjectile = self:createProjectile();
@@ -1598,9 +1611,9 @@ function Launcher:launchSpam()
     
     local proj = Projectile:new({
         position = vec2(randFloat(1, State.grid.numCols), self.position.y),
-        direction = vec2(-randFloat(0.15, 0.15), -1),
+        direction = vec2(randFloat(-0.15, 0.15), -1),
         uuid = self.projectileUUID,
-        config = SpamBlockArray[math.random(2)]
+        config = SpamBlockArray[math.random(#SpamBlockArray)]
     });
     
     proj.direction:setMag(1.3);
@@ -1686,22 +1699,67 @@ end
 
 function client.receive(msg) 
    
-   if (msg.lost) then
-    
-      if (msg.lost ~= client.id) then
-        State.grid:displayText("Winner");
-        Assets.sounds.win:play();
-      else
-        State.grid:displayText("Loser");
-        Assets.sounds.lose:play();
-      end
+   if (not State.play or not State.play.multi) then
+    return
+   end
+   
+   if (msg.ackstart) then
+    State.play.multiStatus = "competing";
+    print("> ack start");
+   end
       
-      
+   if (msg.queue) then
+     State.play.multiStatus = "queued";
+   end
+   
+   if (State.play.multiStatus ~= "competing") then
+    return
+   end
+   
+   function newRound(txt, yoff)
+    yoff = yoff or 0;
+    State.grid:displayText(txt, yoff);
     State.score = 0;
     State.grid:setLevel("multi");
     State.grid:unpause()
+    State.launcher:reset();
     
    end
+   
+   if (msg.lost_round) then
+    
+      if (msg.lost_round ~= client.id) then
+        newRound("Won Round");
+        Assets.sounds.win:play();
+        State.bgScroll = 1;
+      else
+        newRound("Lost Round");
+        Assets.sounds.lose:play();
+        State.bgScroll = -1;
+      end
+    
+   end
+   
+   if (msg.reset) then
+      newRound("New Match!");
+   end
+   
+   if (msg.disc) then
+    newRound("Opponent d/c", 1);
+   end
+   
+   if (msg.win) then
+    
+      if (msg.win == client.id) then
+        newRound("Won Match!");
+        Assets.sounds.win:play();
+      else
+        newRound("Try Again!");
+        Assets.sounds.lose:play();
+      end
+    
+   end
+
    
 end
 
@@ -1711,12 +1769,41 @@ function drawUI(state)
     love.graphics.setColor(1,1,1,1);
     
     local fsize = State.gfx.fontScale(2)
-    love.graphics.print("Lv " .. State.grid.levelNumber, State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
     
     if (State.grid and State.grid.levelNumber ~= "multi") then
+
+      love.graphics.print("Lv " .. State.grid.levelNumber, State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
+    
       love.graphics.print(State.score .. " / " .. State.grid.config.scoreNeeded,  State.gfx.tileOffsetX(State.grid.numCols - 2), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
+    
     end
     
+    if (State.grid and State.grid.levelNumber == "multi") then
+
+      if (State.play.multiStatus == "competing" and client.share.match) then
+         local m = client.share.match;
+          local myPts, theirPts = 0,0;
+          
+          for id, v in pairs(m.points) do
+            if (id == client.id) then
+              myPts = v;
+            else
+              theirPts = v;
+            end
+          end
+          
+          love.graphics.print("Rnd " .. m.round, State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
+          
+          love.graphics.print(myPts .. " - " .. theirPts,  State.gfx.tileOffsetX(State.grid.numCols - 2), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
+    
+      else
+        
+        love.graphics.print("Waiting for opponent...", State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
+      
+      end
+    
+    
+    end
 end
 
 
@@ -1824,8 +1911,16 @@ end
 
 function updateMultiplayer()
 
-    State.grid:serialize(stateshare);
+    if (State.play.multiStatus == "waiting") then
+      State.play:tryStartMulti();
+      return;
+    end
+
+    if (State.play.multiStatus == "queued") then
+       return;
+    end
     
+    State.grid:serialize(stateshare);
     client.home.gridState = stateshare;
     client.home.score = State.score; 
     client.home.launcher = State.launcher;
@@ -1833,9 +1928,14 @@ function updateMultiplayer()
     if (State.grid.loseFlag) then
       State.grid.loseFlag = false;
       State.grid:pause();
-      client.send({
-        lost = client.id,
-      });
+      
+      if (client.share and client.share.match) then
+      
+        client.send({
+          lost_round = client.id,
+        });
+        
+      end
     end
     
     if (client.share.players ~= nil) then
@@ -1855,8 +1955,8 @@ function updateMultiplayer()
         --play yourself
         --local remoteState = client.share.players[client.id]
         
-        --State.remoteGrid:deserialize(remoteState.gridState);
-        State.remoteGrid:deserialize(stateshare);
+         State.remoteGrid:deserialize(remoteState.gridState);
+        --State.remoteGrid:deserialize(stateshare);
         
         
         if (remoteState.launcher) then
@@ -2095,7 +2195,6 @@ function CreditMode:draw()
   
 end
 
-
 local PlayMode = GameMode:new()
 
 function PlayMode:initMultiplayer()
@@ -2107,12 +2206,29 @@ function PlayMode:initMultiplayer()
     State.remoteLauncher = nil;
     
     if not USE_CASTLE_CONFIG then
-      client.start('localhost:22122')
+      client.start('192.168.10.103:22122')
     end
     
     self.multi = true;
+    self.multiStatus = "waiting";
+    self.askedForStart = false;
     
     State.gfx = State.gfxLeft;
+end
+
+function PlayMode:tryStartMulti()
+
+  if (not self.askedForStart and client.connected) then
+      
+    print("send start");
+    self.askedForStart = true;
+    
+    client.send({
+      start = 1
+    });
+    
+  end
+
 end
 
 function PlayMode:initSingleplayer(reset)
@@ -2126,6 +2242,8 @@ function PlayMode:initSingleplayer(reset)
       SaveData.score = 0;
       State.score = 0;
     end
+    
+    self.multi = false;
     
     
     State.grid.numCols = LEVELS[SaveData.level][2];
@@ -2253,6 +2371,12 @@ function PlayMode:keypressed(k)
     end
     
     --Debugging
+    
+    
+    
+    if (k == "l") then
+      State.grid.didLose = true;
+    end
     
     --[[
     
