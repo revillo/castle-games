@@ -1798,7 +1798,13 @@ function drawUI(state)
     
       else
         
-        love.graphics.print("Waiting for opponent...", State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
+        local msg = "Waiting for opponent..."
+        
+        if (not client.connected) then
+          msg = "Connecting to server...";
+        end
+        
+        love.graphics.print(msg, State.gfx.tileOffsetX(1), State.gfx.tileOffsetY(1.2), 0, fsize, fsize);
       
       end
     
