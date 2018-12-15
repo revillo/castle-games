@@ -32,11 +32,12 @@ end
 local cs = require("share/cs");
 
 client = cs.client;
+
+--useCastleConfig must be called right away with this API
 if USE_CASTLE_CONFIG then
     client.useCastleConfig()
 else
     client.enabled = true
-    client.start('192.168.10.103:22122')
 end
 
 local Vec2 = require("lib/vec2")
@@ -1894,6 +1895,8 @@ function GameMode:keypressed(k) end
 function GameMode:mousemoved(x,y) end
 function GameMode:mousepressed(x,y) end
 
+State.mode = GameMode:new();
+
 local MenuMode = GameMode:new();
 
 function MenuMode:init()
@@ -2103,15 +2106,10 @@ function PlayMode:initMultiplayer()
     
     State.remoteLauncher = nil;
     
---[[    
-    if USE_CASTLE_CONFIG then
-        client.useCastleConfig()
-    else
-        --client.enabled = true
-        client.start('127.0.0.1:22122')
+    if not USE_CASTLE_CONFIG then
+      client.start('localhost:22122')
     end
-    ]]
-
+    
     self.multi = true;
     
     State.gfx = State.gfxLeft;
@@ -2211,8 +2209,20 @@ function PlayMode:draw()
  
   if (self.multi and client.connected) then
     drawMultiplayer();
+  elseif (self.multi and not client.connected) then
+    love.graphics.setColor(1,1,1,1);
+   
+    love.graphics.print("Waiting to connect, or service unavailable...",
+      State.gfxRight.tileOffsetX(1),
+      State.gfxRight.tileOffsetY(3),
+      0,
+      State.gfxRight.fontScale(1),
+      State.gfxRight.fontScale(1)
+    );
   end
-   drawUI(State);
+  
+  
+  drawUI(State);
 
 end
 
@@ -2353,7 +2363,6 @@ function client.load()
 end
 
 function client.update(dt)
-
 
   if (State.bgScroll ~= 0.0) then
     local sign = math.sign(State.bgScroll);
