@@ -114,9 +114,7 @@ local frag = [[
     extern float bomb;
     
     float signPow(float x, float e) {
-        
         return pow(abs(x), e) * sign(x);
-    
     }
     
     vec2 squash(vec2 uv, float amt) {
@@ -202,15 +200,30 @@ local frag = [[
       
     }
     
+    float facetHeight(vec2 rvec) {
+        float theta = atan(rvec.y, rvec.x) / 3.14159 + 0.5;
+        theta = ((floor(theta * facets + 0.5) / facets) - 0.5) * 3.14159;
+        vec2 ref = vec2(cos(theta), sin(theta));
+        float proj = dot(rvec, ref);
+        
+        if (dimensions.x > 1.5) {
+            proj *= 1.0;
+        } else {
+            proj *= 2.0;
+        }
+        
+        return 1.0 - proj;
+    }
+    
     vec3 gem(vec2 uv) {
         
+        vec2 pos = uv * dimensions;
         uv = squash(uv, 2.0);
         
         vec2 center = vec2(0.5);// + dimensions - vec2(2.0)
         vec2 rvec = (uv - center);
 
         if (dimensions.x > 1.5) {
-            //center = vec2(1.0) / dimensions;
             center = vec2(1.0);
             vec2 suv = dimensions * uv;
             
@@ -223,25 +236,9 @@ local frag = [[
             }
             
             rvec = suv - center;
-            
         }
         
-        float theta = atan(rvec.y, rvec.x) / 3.14159 + 0.5;
-        
-        theta = ((floor(theta * facets + 0.5) / facets) - 0.5) * 3.14159;
-       
-        
-        vec2 ref = vec2(cos(theta), sin(theta));
-        
-        float proj = dot(rvec, ref);
-        
-        if (dimensions.x > 1.5) {
-            proj *= 1.0;
-        } else {
-            proj *= 2.0;
-        }
-        
-        float height = 1.0 - proj;
+        float height = facetHeight(rvec);
         
         if (height > 0.0) {
           height = min(0.6, height);
@@ -249,27 +246,29 @@ local frag = [[
           height = pow(height, 0.5);
         }
 
-        return vec3(uv * dimensions, height);
+        return vec3(pos, height);
     }
     
- 
-    vec4 drawGem(vec2 uv, vec4 color) {
-    
-      vec3 pos = gem(uv);
-        
+    vec3 gemNormal(vec2 uv, out float height) {
+        vec3 pos = gem(uv);
         vec3 nx = gem(uv + vec2(0.005, 0.0));
         vec3 ny = gem(uv + vec2(0.0, 0.005));
         
-        vec3 vx = normalize(nx - pos);
-        vec3 vy = normalize(ny - pos);
-        
-        vec3 normal = normalize(cross(vx, vy));
-            
-        float height = pos.z;
-        
-        vec2 rad = uv - vec2(0.5);
-       
-        if(height < 0.0 && time > -1.0) {
+        vec3 normal = normalize(cross(
+          normalize(nx - pos), 
+          normalize(ny - pos)
+         ));
+         
+         height = pos.z;         
+         return normal; 
+    }
+ 
+    vec4 drawGem(vec2 uv, vec4 color) {
+    
+         float height;
+         vec3 normal = gemNormal(uv, height);
+         
+        if( height < 0.0 && time > -1.0) {
             return vec4(0.0, 0.0, 0.0, 0.0);
         }
        
@@ -277,6 +276,8 @@ local frag = [[
        float spec = max(0.0, pow(diff, 15.0)) * 0.7;
        vec3 fclr = vec3(diff) * color.rgb + vec3(spec);
 
+      
+ 
         return vec4(fclr, 1.0);
     }
     
@@ -396,15 +397,8 @@ float random(float v) {
           randNum( seed * 1823.13 + 30.78, 1.0, 3.0)
         );
     
-        //uv -= vec2(0.5, 0.5);
-         //uv = rotate(uv, random(seed * 393.23) * 1.0);
-        //uv += vec2(0.5, 0.5);
-        //uv *= 1.6;
-    
         uv *= vec2(dim.y, dim.x);
-        //dim /= 2.0;
-        
-        //dim = vec2(2.0, 2.0);
+
       
         float facets = randNum(seed * 100.0 + 100.0, 2.0, 6.0);
         vec3 pos = gem(uv, dim, facets);

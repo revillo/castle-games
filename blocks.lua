@@ -551,7 +551,7 @@ function Grid:init()
     self.gems = {};
     self.gemID = 0;
     self.textAnim = TextAnimator:new();
-    
+    self.shards = Array:new();
     
     self.config = {
         blockConfigs = {BlockType.Blue, BlockType.Red},
@@ -564,15 +564,22 @@ function Grid:init()
 end
 
 
-function Grid:updateEffects(state)
+function Grid:updateEffects(state, isRemote)
 
   local didPlay = false;
   local highestRow = -1;
   
-  self.animating = self.animating - state.dt * 1.5;
+  local gfx = State.gfx;
+  
+  if (isRemote) then
+      gfx = State.gfxRight;
+  else
+      self.animating = self.animating - state.dt * 1.5;
+  end
   
   self:eachBlock(function(blk, r, c)
   
+    
     if (blk.shrink ~= nil) then
         blk.shrink = blk.shrink - state.dt * 8.5;
         self.animating = 1;
@@ -587,8 +594,10 @@ function Grid:updateEffects(state)
     
         blk.willBurst = nil;
         
-        state.score = state.score + 10;
-
+        if (not isRemote) then
+          state.score = state.score + 10;
+        end
+        
         if (not didPlay) then
             didPlay = true;
             if blk.isOrphan then
@@ -599,9 +608,9 @@ function Grid:updateEffects(state)
         
         self.textAnim:addAnimation("+10", nil, {
             duration = 0.5,
-            x = state.gfx.tileOffsetX(c + 0.2),
-            y = state.gfx.tileOffsetY(r + 0.7 + self.yOffset),
-            size = State.gfx.fontScale(1)
+            x = gfx.tileOffsetX(c + 0.2),
+            y = gfx.tileOffsetY(r + 0.7 + self.yOffset),
+            size = gfx.fontScale(1)
         });
     end
     
@@ -640,46 +649,60 @@ function Grid:updateEffects(state)
         
         local gmScore = self:gemScore(gem.w, gem.h);
     
-        state.score = state.score + gmScore;
-    
+        if (not isRemote) then
+          state.score = state.score + gmScore;
+        end
+        
         gem.willBurst = nil;
         self.textAnim:addAnimation("+" .. gmScore, nil, {
             duration = 1.5,
-            x = state.gfx.tileOffsetX(gem.c + 0.2 * gem.w),
-            y = state.gfx.tileOffsetY(gem.r + self.yOffset + 0.7 * gem.h),
-            size = State.gfx.fontScale(2)
+            x = gfx.tileOffsetX(gem.c + 0.2 * gem.w),
+            y = gfx.tileOffsetY(gem.r + self.yOffset + 0.7 * gem.h),
+            size = gfx.fontScale(2)
         });
         
         local s = love.graphics.newParticleSystem(Assets.images.shard, 150);
-        s:setParticleLifetime(0.5, 1.0) 
+        
+        s:setParticleLifetime(0.2) 
         s:setEmissionRate(0)
-        s:setSizes(0.05, 0.03)
-        s:setEmissionArea("uniform", state.gfx.tileSize(gem.w * 0.4), state.gfx.tileSize(gem.h * 0.4), 0, false);
+        s:setSizes(0.07, 0.02)
+        s:setEmissionArea("uniform", gfx.tileSize(gem.w * 0.4), gfx.tileSize(gem.h * 0.4), 0, false);
         s:setRotation( -3, 3 )
-        s:setSpin(-4.0, 4.0);
+       -- s:setSpin(-4.0, 4.0);
         s:setSizeVariation(1)
         
-        s:setSpeed(-100, 100);
-        s:setLinearDamping(0.11, 0.11);
+        s:setSpeed(-600, 600);
+        s:setSpread(6);
+        s:setLinearAcceleration(0, 120.0, 0, 120.0);
+        --s:setLinearDamping(0.11, 0.11);
         s:setColors(
-          255, 255, 255, 180, 
-          255, 255, 255, 0,
-          255, 255, 255, 125,
+          255, 255, 255, 255, 
           255, 255, 255, 0)
           
         s:emit(150);
-
-        if (not self.multi) then
-            gem.shards = s;
-        end
+        
+        
+        self.shards:push({
+          ps = s,
+          gem = gem,
+          y = gem.r + self.yOffset,
+          t = 0
+        });    
         
     end
-    
-    if (gem.shards) then
-      gem.shards:update(state.dt);
-    end
-    
   end);
+  
+  self.shards:each(function(s)
+    s.ps:update(state.dt);
+    s.t = s.t + state.dt;
+  end);
+  
+  if (self.shards.length > 0) then
+    if self.shards[1].t > 1.0 then
+      self.shards:shift();
+    end
+  end
+    
 end
 
 function Grid:getPercentFinished()
@@ -824,6 +847,7 @@ function Grid:draw(state, gfx)
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
     
+    --[[
     self:eachGem(function(gem) 
       
       love.graphics.setColor(gem.config.color);
@@ -835,10 +859,22 @@ function Grid:draw(state, gfx)
           );
         end  
     end);
+    ]]
     
     if (self.textAnim) then
         self.textAnim:draw();
     end
+    
+    self.shards:each(function(shard)
+      
+      love.graphics.setColor(shard.gem.config.color);
+    
+      love.graphics.draw(shard.ps, 
+        gfx.tileOffsetX(shard.gem.c + shard.gem.w * 0.5),
+        gfx.tileOffsetY(shard.y + shard.gem.h * 0.5) 
+      );
+      
+    end);
     
    
 end
@@ -869,6 +905,8 @@ function Grid:serialize(dataOut)
     
       self.minigrid[r][c].s = blk.status;
       self.minigrid[r][c].c = blk.config.index;
+      self.minigrid[r][c].sh = blk.shrink;
+      self.minigrid[r][c].wb = blk.willBurst;
       
       if (blk.gem) then
         self.minigrid[r][c].s = 0;
@@ -898,10 +936,15 @@ function Grid:deserialize(dataIn)
     if (self.minigrid) then
       self:eachBlock(function(blk, r, c) 
 
-        blk.status = self.minigrid[r][c].s;
-        blk.config = BlockTypeArray[self.minigrid[r][c].c];
+        local mgb = self.minigrid[r][c];
+        
+        blk.status = mgb.s;
+        blk.config = BlockTypeArray[mgb.c];
         blk.gem = nil;
-        blk.shrink = nil;
+        --blk.shrink = nil;
+        blk.shrink = mgb.sh;
+        blk.willBurst = mgb.wb;
+        
       end);
     end
     
@@ -1339,6 +1382,7 @@ function Grid:updateRemote(state)
     
     self.textAnim:update(state.dt);
 
+    self:updateEffects(state, true);
 end
 
 function Grid:update(state)
@@ -1591,6 +1635,18 @@ end
 function Launcher:pause()
     self.paused = true;
 end
+
+
+function Launcher:updateRemote(state)
+
+  self:eachProjectile(function(proj)
+    
+    proj.position:addScaled(proj.direction, state.dt * GEM_SPEED / 10.0);
+  
+  end);
+
+end
+
 
 function Launcher:update(state)
 
@@ -1964,7 +2020,8 @@ function updateMultiplayer()
         client.send({
           lost_round = client.id,
         });
-        
+      else
+        State.grid:setLevel("multi");
       end
     end
     
@@ -2016,6 +2073,7 @@ function updateMultiplayer()
     
     State.remoteGrid:updateRemote(State);
 
+    State.launcher:updateRemote(State);
 end
 
 
@@ -2566,14 +2624,12 @@ function client.draw()
   love.graphics.setBlendMode("alpha")
   State.mode:draw();
   
-  
   if (State.paused) then
-    Assets.sounds.music:setVolume(VOLUME * 0.0);
-
+    love.audio.setVolume(0.0);
     love.graphics.setColor(0.0, 0.0, 0.0, 0.5);
     love.graphics.rectangle("fill", 0, 0, State.width, State.height);
   else
-    Assets.sounds.music:setVolume(VOLUME * 3.0);
+    love.audio.setVolume(1.0);
   end
   
 end
