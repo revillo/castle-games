@@ -2026,6 +2026,7 @@ function updateMultiplayer()
         });
       else
         State.grid:setLevel("multi");
+        State.grid:unpause();
       end
     end
     
