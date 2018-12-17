@@ -25,10 +25,26 @@ function Sound:play()
 
 end
 
+function Sound:stop()
+
+  for i = 1, self.cacheSize do
+    self.sources[i]:stop();
+  end
+
+end
+
 function Sound:setVolume(vlm)
   
   for i = 1, self.cacheSize do
     self.sources[i]:setVolume(vlm);
+  end
+  
+end
+
+function Sound:setLooping(shouldLoop)
+
+  for i = 1, self.cacheSize do
+    self.sources[i]:setLooping(shouldLoop);
   end
   
 end

@@ -14,7 +14,7 @@ if CASTLE_PREFETCH then
         'lib/TextAnimator.lua',
         'share/cs.lua',
         'share/state.lua',
-       'sounds/whoosh.wav',
+       'sounds/whoosh.mp3',
       'sounds/chip2.wav',
       'sounds/bounce.wav',
       'sounds/ping.wav',
@@ -600,6 +600,9 @@ function Grid:updateEffects(state, isRemote)
         
         if (not didPlay) then
             didPlay = true;
+            if blk.isOrphan then
+              Assets.sounds.dropOrphans:play();
+            end
             Assets.sounds.chip:play();
         end
         
@@ -948,7 +951,7 @@ function Grid:deserialize(dataIn)
 end
 
 function Grid:triggerBlock(br, bc)
-    --Assets.sounds.bomb:play();
+    Assets.sounds.bombExplode:play();
 
     local config = self.blocks[br][bc].config;
     local toCheck = Queue:new{};
@@ -1334,9 +1337,11 @@ function Grid:dropOrphans()
                 block.gem.shrink = maxShrink + 2;
                 block.shrink = nil;
                 block.gem.willBurst = true;
+                block.gem.isOrphan = true;
             else
                 block.shrink = maxShrink + 2;
                 block.willBurst = true;
+                block.isOrphan = true;
             end
         end
     end);
@@ -1481,6 +1486,8 @@ function Launcher:createProjectile()
     
         projectile.isBomb = true;
         self.bombTracker = 1;
+
+        Assets.sounds.fuse:play()
     else
         projectile.config = State.grid:sampleBlockConfigs();
     end
@@ -1499,10 +1506,16 @@ function Launcher:fire(x, y)
 
     self.reloadTime = 0;
     
-    Assets.sounds.zap:play();
-    
     local projectile = self.nextProjectile;
-    
+
+    if projectile.isBomb then
+      Assets.sounds.launchBomb:play();
+    else
+      Assets.sounds.zap:play();
+    end
+
+
+
     if (x == nil) then
         projectile.direction = vec2(self.indicatorDelta.x, self.indicatorDelta.y);
     else
@@ -1524,7 +1537,18 @@ function Launcher:fire(x, y)
     self.nextProjectile.shrink = 1.0;
     self.nextProjectile.position:set(self.position.x, self.position.y);
     self.projectileOnDeck = self:createProjectile();
-    
+
+    -- update bomb fuse sounds for new projectile set
+    if self.nextProjectile.isBomb then
+      Assets.sounds.fuse:play()
+      Assets.sounds.fuse:setVolume(0.04)
+    elseif self.projectileOnDeck.isBomb then
+      Assets.sounds.fuse:play()
+      Assets.sounds.fuse:setVolume(0.008)
+    else -- no bombs
+      Assets.sounds.fuse:stop()
+    end
+
 end
 
 function Launcher:eachProjectile(fn)
@@ -2470,10 +2494,14 @@ function client.load()
     --love.graphics.setBackgroundColor( 0.05, 0.05, 0.05 )
     
     Assets.sounds = {
-      zap =     Sound:new("sounds/whoosh.wav", 3),
+      zap =     Sound:new("sounds/whoosh.mp3", 3),
+      launchBomb = Sound:new("sounds/launch_bomb.mp3", 3),
+      bombExplode = Sound:new("sounds/bomb_explode.mp3", 3),
+      dropOrphans = Sound:new("sounds/drop_orphans.mp3", 2),
       chip = Sound:new("sounds/chip2.wav",  15),
+      fuse = Sound:new("sounds/fuse.ogg",  1),
       bounce =  Sound:new("sounds/bounce.wav",  5),
-      attach =  Sound:new("sounds/ping.wav",  2),
+      attach =  Sound:new("sounds/ping.mp3",  4),
       glass = Sound:new("sounds/glass2.wav",  15),
       lose = Sound:new("sounds/lose.wav"),
       win = Sound:new("sounds/win.wav"),
@@ -2487,7 +2515,12 @@ function client.load()
     for k,v in pairs(Assets.sounds) do
         v:setVolume(VOLUME);
     end
+
+    Assets.sounds.dropOrphans:setVolume(0.5)
     
+    Assets.sounds.fuse:setLooping(true);
+    Assets.sounds.fuse:setVolume(0.05);
+
     Assets.sounds.zap:setVolume(0.5);
     Assets.sounds.attach:setVolume(VOLUME);
     --Assets.sounds.bomb:setVolume(VOLUME * 0);
