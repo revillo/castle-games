@@ -2296,7 +2296,7 @@ function PlayMode:initMultiplayer()
     State.remoteLauncher = nil;
     
     if not USE_CASTLE_CONFIG then
-      client.start('192.168.10.103:22122')
+      client.start('localhost:22122')
     end
     
     self.multi = true;
