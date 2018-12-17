@@ -14,10 +14,13 @@ if CASTLE_PREFETCH then
         'lib/TextAnimator.lua',
         'share/cs.lua',
         'share/state.lua',
-       'sounds/whoosh.mp3',
+       'sounds/pop.mp3',
+       'sounds/bomb2.mp3',
       'sounds/chip2.wav',
       'sounds/bounce.wav',
       'sounds/ping.wav',
+      'sounds/drop_orphans.mp3',
+      'sounds/fuse.ogg',
       'sounds/glass2.wav',
       'sounds/lose.wav',
       'sounds/win.wav',
@@ -1448,13 +1451,14 @@ function Launcher:init()
     self.indicatorAngle = 0;
     self.reloadTime = 0;
         
-    self:reset();
     
 end
 
 function Launcher:reset()
     self.bombTracker = 1;
     self.spamAmt = 0;
+    Assets.sounds.fuse:stop()
+
     self.projectiles = {};
     self.position = vec2(State.grid.numCols / 2 + 0.5,    State.grid.config.maxRows + 1.2);
     self.projectileUUID = 1;
@@ -1463,7 +1467,7 @@ function Launcher:reset()
     self.nextProjectile.position:copy(self.position);
     self.nextProjectile.shrink = 1.0;
     self.projectileOnDeck = self:createProjectile();
-    
+
 end
 
 function Launcher:createProjectile()
@@ -2111,7 +2115,6 @@ function MenuMode:init()
             size = State.gfx.fontScale(2),
             action = function() 
                 State.play:initSingleplayer(false);
-                State.launcher:reset();
                 State.mode = State.play;
                 Assets.sounds.glass:play()
             end
@@ -2137,7 +2140,6 @@ function MenuMode:init()
             },
             action = function() 
                 State.play:initSingleplayer(true); 
-                State.launcher:reset();
                 State.mode = State.play;
                 Assets.sounds.glass:play()
             end
@@ -2162,7 +2164,6 @@ function MenuMode:init()
             },
             action = function() 
                 State.play:initMultiplayer(); 
-                State.launcher:reset();
                 State.mode = State.play;
                 Assets.sounds.glass:play()
             end
@@ -2301,6 +2302,8 @@ function PlayMode:initMultiplayer()
     self.multiStatus = "waiting";
     self.askedForStart = false;
     
+    State.launcher:reset();
+
     State.gfx = State.gfxLeft;
 end
 
@@ -2342,6 +2345,8 @@ function PlayMode:initSingleplayer(reset)
     State.grid:setLevel(SaveData.level);
     State.gfx = State.gfxCenter;
 
+    State.launcher:reset();
+    
     if (reset) then
       writeSaveData();
     end
@@ -2494,14 +2499,14 @@ function client.load()
     --love.graphics.setBackgroundColor( 0.05, 0.05, 0.05 )
     
     Assets.sounds = {
-      zap =     Sound:new("sounds/whoosh.mp3", 3),
+      zap =     Sound:new("sounds/pop.mp3", 3),
       launchBomb = Sound:new("sounds/launch_bomb.mp3", 3),
-      bombExplode = Sound:new("sounds/bomb_explode.mp3", 3),
+      bombExplode = Sound:new("sounds/bomb2.mp3", 3),
       dropOrphans = Sound:new("sounds/drop_orphans.mp3", 2),
       chip = Sound:new("sounds/chip2.wav",  15),
       fuse = Sound:new("sounds/fuse.ogg",  1),
       bounce =  Sound:new("sounds/bounce.wav",  5),
-      attach =  Sound:new("sounds/ping.mp3",  4),
+      attach =  Sound:new("sounds/ping.wav",  4),
       glass = Sound:new("sounds/glass2.wav",  15),
       lose = Sound:new("sounds/lose.wav"),
       win = Sound:new("sounds/win.wav"),
@@ -2509,27 +2514,28 @@ function client.load()
       --bomb = Sound:new("sounds/bomb.wav", 2)
     }  
     
-    Assets.sounds.music:setVolume(VOLUME * 3.0);
-    Assets.sounds.music:setLooping(true);
-    
     for k,v in pairs(Assets.sounds) do
         v:setVolume(VOLUME);
     end
+    
+    Assets.sounds.music:setVolume(VOLUME * 3.0);
+    Assets.sounds.music:setLooping(true);
 
-    Assets.sounds.dropOrphans:setVolume(0.5)
+    Assets.sounds.bombExplode:setVolume(1.0);
+    Assets.sounds.dropOrphans:setVolume(0.4)
     
     Assets.sounds.fuse:setLooping(true);
     Assets.sounds.fuse:setVolume(0.05);
 
-    Assets.sounds.zap:setVolume(0.5);
-    Assets.sounds.attach:setVolume(VOLUME);
+    Assets.sounds.zap:setVolume(0.8);
+    Assets.sounds.attach:setVolume(0.7);
     --Assets.sounds.bomb:setVolume(VOLUME * 0);
     
     Assets.images = {
       --gem =  love.graphics.newImage("images/gem.png"),
       --sheen =  love.graphics.newImage("images/sheen.png"),
       shard =  love.graphics.newImage("images/shard.png"),
-      gypsum = love.graphics.newImage("images/gypsum.png"),
+      --gypsum = love.graphics.newImage("images/gypsum.png"),
       --bg = love.graphics.newImage("images/bg.png"),
       --bomb = love.graphics.newImage("images/bomb.png")
       --diamond = love.graphics.newImage("images/diamond.png")

@@ -262,7 +262,18 @@ local frag = [[
          height = pos.z;         
          return normal; 
     }
- 
+
+vec3 random3(vec3 c) {
+	float j = 4096.0*sin(dot(c,vec3(17.0, 59.4, 15.0)));
+	vec3 r;
+	r.z = fract(512.0*j);
+	j *= .125;
+	r.x = fract(512.0*j);
+	j *= .125;
+	r.y = fract(512.0*j);
+	return r;
+}
+
     vec4 drawGem(vec2 uv, vec4 color) {
     
          float height;
@@ -275,9 +286,13 @@ local frag = [[
        float diff = dot(normal, normalize(vec3(-0.2, -0.5, 0.5))) * 0.3 + 0.7;
        float spec = max(0.0, pow(diff, 15.0)) * 0.7;
        vec3 fclr = vec3(diff) * color.rgb + vec3(spec);
+       
+       
+       vec3 nz = random3(vec3(uv * dimensions, height));
+       if (nz.x > 0.995) {
+          fclr = mix(fclr, vec3(1.0, 1.0, 1.0), nz.y);
+       }
 
-      
- 
         return vec4(fclr, 1.0);
     }
     
