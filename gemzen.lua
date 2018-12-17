@@ -22,6 +22,7 @@ if CASTLE_PREFETCH then
       'sounds/bounce.wav',
       'sounds/ping.wav',
       'sounds/drop_orphans.mp3',
+      'sounds/launch_bomb.mp3',
       'sounds/fuse.ogg',
       'sounds/glass2.wav',
       'sounds/lose.wav',
