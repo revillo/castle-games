@@ -12,6 +12,9 @@ local DIFF_NIL = '__NIL' -- Sentinel to encode `nil`-ing in diffs -- TODO(nikki)
 local function nonempty(t) return next(t) ~= nil end
 
 
+local function serializable(v) return type(v) ~= 'userdata' end
+
+
 local Methods = {}
 
 
@@ -71,10 +74,7 @@ local function adopt(parent, name, t)
         assert(proxy.parent, 'tried to adopt a root node')
         assert(proxies[proxy.parent].children[proxy.name] ~= t, 'tried to adopt an adopted node')
     else -- New node
-       --assert(not getmetatable(t), 'tried to adopt a table that has a metatable')
-        
-        local mt = getmetatable(t);
-       
+        --assert(not getmetatable(t), 'tried to adopt a table that has a metatable')
         node = newproxy(true)
         local meta = getmetatable(node)
         proxy = {}
@@ -85,10 +85,6 @@ local function adopt(parent, name, t)
         proxy.children = children
         meta.__index = children
 
-        if mt then
-            children.typename = mt.typename;
-        end
-        
         -- Forward `#node`
         function meta.__len()
             return #children
@@ -274,7 +270,7 @@ function Methods:__diff(client, exact, alreadyExact, caches)
                         if not exact then
                             ret[k] = DIFF_NIL
                         end
-                    else
+                    elseif serializable(v) then
                         ret[k] = v
                     end
                 end
@@ -295,7 +291,7 @@ function Methods:__diff(client, exact, alreadyExact, caches)
                     ret[k] = v:__diff(client, exact, alreadyExact, caches)
                 elseif v == nil then -- This can only happen if `not exact`
                     ret[k] = DIFF_NIL
-                else
+                elseif serializable(v) then
                     ret[k] = v
                 end
             end
@@ -405,37 +401,23 @@ end
 
 -- Apply a diff from `:__diff` or `:__flush` to a target `t`
 local function apply(t, diff)
-
-    local res = (function()
-      if diff == nil then return t end
-      
-      if diff.__exact then
-          diff.__exact = nil  
-          return diff
-      end
-      
-      t = type(t) == 'table' and t or {}
-      for k, v in pairs(diff) do
-          if type(v) == 'table' then
-              t[k] = apply(t[k], v)
-          elseif v == DIFF_NIL then
-              t[k] = nil
-          else
-              t[k] = v
-          end
-      end
-      
-      return t
-
-    end)()
-    
-    if (type(res) == 'table' and res.typename and TypeMap and TypeMap[res.typename]) then
-      setmetatable(res, TypeMap[res.typename]);
-   end
-   
-   return res;
+    if diff == nil then return t end
+    if diff.__exact then
+        diff.__exact = nil
+        return diff
+    end
+    t = type(t) == 'table' and t or {}
+    for k, v in pairs(diff) do
+        if type(v) == 'table' then
+            t[k] = apply(t[k], v)
+        elseif v == DIFF_NIL then
+            t[k] = nil
+        else
+            t[k] = v
+        end
+    end
+    return t
 end
-
 
 
 return {

@@ -2466,10 +2466,11 @@ function PlayMode:keypressed(k)
     --Debugging
     
     
-    
+    --[[
     if (k == "l") then
       State.grid.didLose = true;
     end
+    ]]
     
     --[[
     
