@@ -29,6 +29,7 @@ if CASTLE_PREFETCH then
       'sounds/win.wav',
      'sounds/music.mp3',
      'images/shard.png',
+     'images/blast.png',
      'images/gypsum.png',
      'fonts/OpenSans-ExtraBold.ttf'
     })

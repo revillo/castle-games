@@ -287,11 +287,6 @@ vec3 random3(vec3 c) {
        float spec = max(0.0, pow(diff, 15.0)) * 0.7;
        vec3 fclr = vec3(diff) * color.rgb + vec3(spec);
        
-       
-       vec3 nz = random3(vec3(uv * dimensions, height));
-       if (nz.x > 0.995) {
-          fclr = mix(fclr, vec3(1.0, 1.0, 1.0), nz.y);
-       }
 
         return vec4(fclr, 1.0);
     }

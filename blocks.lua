@@ -555,7 +555,8 @@ function Grid:init()
     self.gemID = 0;
     self.textAnim = TextAnimator:new();
     self.shards = Array:new();
-    
+    self.blasts = Array:new();
+  
     self.config = {
         blockConfigs = {BlockType.Blue, BlockType.Red},
         maxRows = 15,
@@ -668,7 +669,7 @@ function Grid:updateEffects(state, isRemote)
         
         s:setParticleLifetime(0.2) 
         s:setEmissionRate(0)
-        s:setSizes(0.07, 0.02)
+        s:setSizes(gfx.tileSize(0.001))
         s:setEmissionArea("uniform", gfx.tileSize(gem.w * 0.4), gfx.tileSize(gem.h * 0.4), 0, false);
         s:setRotation( -3, 3 )
        -- s:setSpin(-4.0, 4.0);
@@ -679,8 +680,8 @@ function Grid:updateEffects(state, isRemote)
         s:setLinearAcceleration(0, 120.0, 0, 120.0);
         --s:setLinearDamping(0.11, 0.11);
         s:setColors(
-          255, 255, 255, 255, 
-          255, 255, 255, 0)
+          1, 1, 1, 1, 
+          1, 1, 1, 0.5)
           
         s:emit(150);
         
@@ -695,6 +696,7 @@ function Grid:updateEffects(state, isRemote)
     end
   end);
   
+  --Update shards
   self.shards:each(function(s)
     s.ps:update(state.dt);
     s.t = s.t + state.dt;
@@ -703,6 +705,18 @@ function Grid:updateEffects(state, isRemote)
   if (self.shards.length > 0) then
     if self.shards[1].t > 1.0 then
       self.shards:shift();
+    end
+  end
+  
+  --Update blasts
+  self.blasts:each(function(b)
+    b.ps:update(state.dt);
+    b.t = b.t + state.dt;
+  end);
+  
+   if (self.blasts.length > 0) then
+    if self.blasts[1].t > 1.0 then
+      self.blasts:shift();
     end
   end
     
@@ -772,27 +786,10 @@ function Grid:drawProgressBar(state, gfx)
 
 end
 
-function Grid:drawBorder(gfx)
- love.graphics.setColor(1,1,1,1);
-    
-    love.graphics.setShader(Assets.shaders.border);
-    Assets.shaders.border:send("scale", {gfx.tileSize(1), gfx.tileSize(1)});
-    
-    love.graphics.draw(Assets.meshes.border,
-      gfx.tileOffsetX(1),
-      gfx.tileOffsetY(2)
-    );
-    
-    love.graphics.setShader();
-end;
 
 function Grid:draw(state, gfx)
-   
-
-   
+      
     local clr = love.graphics.setColor;
-   
-    --self:drawBorder(gfx); 
       
     self:drawProgressBar(state, gfx);
     
@@ -849,20 +846,7 @@ function Grid:draw(state, gfx)
         gfx.tileOffsetX(1), gfx.tileOffsetY(2), 
         gfx.tileSize(self.numCols), gfx.tileSize(self.config.maxRows - 1)
     );
-    
-    --[[
-    self:eachGem(function(gem) 
-      
-      love.graphics.setColor(gem.config.color);
-    
-       if (gem.shards) then        
-          love.graphics.draw(gem.shards, 
-            gfx.tileOffsetX(gem.c + gem.w * 0.5),
-            gfx.tileOffsetY(gem.r + gem.h * 0.5 + self.yOffset) 
-          );
-        end  
-    end);
-    ]]
+
     
     if (self.textAnim) then
         self.textAnim:draw();
@@ -877,6 +861,17 @@ function Grid:draw(state, gfx)
         gfx.tileOffsetY(shard.y + shard.gem.h * 0.5) 
       );
       
+    end);
+    
+    self.blasts:each(function(blast)
+      
+      love.graphics.setColor(1,1,1,0.6);
+      
+      love.graphics.draw(blast.ps, 
+        gfx.tileOffsetX(blast.pos[1]),
+        gfx.tileOffsetY(blast.pos[2]) 
+      );
+    
     end);
     
    
@@ -1005,7 +1000,7 @@ function Grid:triggerBlock(br, bc)
             
             end
 
-            if (not self.multi and tmpScore > LEVELS[self.levelNumber][4]) then
+            if (not self.multi and tmpScore >= LEVELS[self.levelNumber][4]) then
                 clearAll = true;
                 State.launcher:pause();
             end
@@ -1216,6 +1211,35 @@ function Grid:projectileTouchesBlock(proj, r, c)
     
 end
 
+function Grid:createBlast(x,y)
+  
+    local s = love.graphics.newParticleSystem(Assets.images.blast, 40);
+        
+      s:setParticleLifetime(0.25) 
+      s:setEmissionRate(0)
+      s:setSizes(0.009 * State.gfx.tileSize(1), 0);
+      s:setEmissionArea("uniform", State.gfx.tileSize(0.1), State.gfx.tileSize(0.1), 0, false);
+      --s:setRotation( -3, 3 )
+      s:setSizeVariation(1)
+      s:setRelativeRotation(true);
+      s:setSpeed(-500, 500);
+      s:setSpread(6);
+      s:setLinearAcceleration(0, 0.0, 0, 0.0);
+      --s:setLinearDamping(0.11, 0.11);
+      s:setColors(
+        1, 1, 1, 1, 
+        1, 1, 1, 0.2)
+        
+      s:emit(40);
+      
+      self.blasts:push({
+        ps = s,
+        pos = {x, y},
+        t = 0
+      });      
+
+end
+
 function Grid:considerProjectile(proj)
   
     if(proj.position.y  - self.yOffset < 1) then
@@ -1234,6 +1258,7 @@ function Grid:considerProjectile(proj)
             
             --self.blocks[pr+1][pc].status = 1;
             if (proj.isBomb) then
+                self:createBlast(proj.position.x, proj.position.y);
                 self:triggerBlock(r,c);
             else
                 self:insertProjectile(proj);
@@ -2233,6 +2258,7 @@ function MenuMode:mousepressed(x, y)
         
     end);
 
+    
 end
 
 local CreditMode = GameMode:new()
@@ -2452,6 +2478,9 @@ function PlayMode:mousepressed(x, y)
     
     local tx, ty = State.gfx.pixToOffset(x, y);
     State.launcher:fire(tx - 0.5, ty - 0.5);
+    
+    
+   --State.grid:createBlast(tx, ty);
 end
 
 function PlayMode:keypressed(k)
@@ -2537,6 +2566,7 @@ function client.load()
       --gem =  love.graphics.newImage("images/gem.png"),
       --sheen =  love.graphics.newImage("images/sheen.png"),
       shard =  love.graphics.newImage("images/shard.png"),
+      blast = love.graphics.newImage("images/blast.png")
       --gypsum = love.graphics.newImage("images/gypsum.png"),
       --bg = love.graphics.newImage("images/bg.png"),
       --bomb = love.graphics.newImage("images/bomb.png")
