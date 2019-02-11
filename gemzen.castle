@@ -2,6 +2,6 @@
 main: gemzen.lua
 name: Gemzen
 username: revillo
-primaryColor: #C0C0C0
+primaryColor: C0C0C0
 coverImageUrl: https://raw.githubusercontent.com/revillo/castle-games/master/logo.png
 description: Relax and break some gems.
