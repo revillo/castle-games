@@ -1,0 +1,7 @@
+---
+main: gemzen.lua
+name: Gemzen
+username: revillo
+primaryColor: #C0C0C0
+coverImageUrl: https://github.com/revillo/castle-games/blob/master/logo.png
+description: Relax and break some gems.
