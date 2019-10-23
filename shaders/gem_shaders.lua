@@ -106,6 +106,7 @@ end
 
 function Shaders.gemShader()
 
+  print("gem shader");
 
 local frag = [[
     extern float time;
@@ -307,7 +308,7 @@ vec3 random3(vec3 c) {
 
 local vert = [[
     
-    extern vec2 scale;
+    extern mediump vec2 scale;
     
     vec4 position(mat4 transform_projection, vec4 vertex_position)
     {
@@ -323,6 +324,8 @@ return love.graphics.newShader(frag, vert);
 end
 
 Shaders.backgroundShader = function()
+
+  print ("bg shader");
  return love.graphics.newShader([[
      
 
@@ -332,7 +335,7 @@ float random(float v) {
 
     extern float time;
     extern float unit;
-    extern vec2 scale;
+    extern mediump vec2 scale;
     
     extern float flash;
 
@@ -548,7 +551,7 @@ float random(float v) {
   
   ]] , [[
   
-    extern vec2 scale;
+    extern mediump vec2 scale;
 
     attribute float VertexShade;
     
@@ -563,6 +566,8 @@ float random(float v) {
 end
 
 Shaders.rubyShader = function() 
+
+  print("ruby shader");
  return love.graphics.newShader([[
 
   extern float time;
@@ -690,12 +695,12 @@ vec3 normal_sdf(vec3 pos) {
       float specular = pow(max(0.0, dot(reflect(eye, normal), light)), 3.0) * 1.0;
 
       
-      return vec4(vec3(1.0,0.1,0.0) * diffuse + vec3(0.9, 0.9, 0.9) * specular, 1.0) * float(hit > 0.0);
+      return vec4(vec3(1.0,0.1,0.0) * diffuse + vec3(0.9, 0.9, 0.9) * specular, 1.0) * float(hit > 0);
     }
   
   ]] , [[
   
-    extern vec2 scale;
+    extern mediump vec2 scale;
 
     attribute float VertexShade;
     
@@ -712,6 +717,7 @@ end
 
 Shaders.borderShader = function()
 
+  print("border shader");
   return love.graphics.newShader([[
      
     varying vec3 pos; 
@@ -732,7 +738,7 @@ Shaders.borderShader = function()
   
   ]] , [[
   
-    extern vec2 scale;
+    extern mediump vec2 scale;
     varying vec3 pos;
     varying float shade;
 
