@@ -327,7 +327,7 @@ Shaders.backgroundShader = function()
 
   print ("bg shader");
  return love.graphics.newShader([[
-     
+  precision highp float;     
 
 float random(float v) {
   return fract(4096.0 * sin(v));
@@ -520,7 +520,7 @@ float random(float v) {
     }
     
 
-    vec4 effect( vec4 color, Image texture, vec2 texture_coords, vec2 screen_coords )
+    mediump vec4 effect(mediump vec4 color, Image texture, mediump vec2 texture_coords, mediump vec2 screen_coords )
     {
         vec4 clr = vec4(0.0, 0.0, 0.0, 1.0);
         
